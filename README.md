@@ -16,7 +16,7 @@ $ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
 
 You'll get a paginated collection response:
 
-```json
+```jsonc
 {
   "items": [
     {
@@ -29,7 +29,7 @@ You'll get a paginated collection response:
       "modifiedAt": "2020-10-14T13:59:54.047Z"
     }
   ],
-  "pageInfo": { ... },
+  "pageInfo": { /* object */ },
 }
 ```
 
@@ -162,10 +162,10 @@ All resources providing a collection of items are paginated by default. Cursor b
 
 All paginated resource responses adhere to the following shape:
 
-```json
+```jsonc
 {
-  "items": [ ... ],   // array
-  "pageInfo": { ... } // object
+  "items": [ /* array */ ],
+  "pageInfo": { /* object */ }
 }
 ```
 
@@ -177,7 +177,7 @@ In case there are no matching objects available, `items` is an empty array `[]`.
 
 Example:
 
-```json
+```jsonc
 {
   "items": [
     {
@@ -190,7 +190,7 @@ Example:
       "modifiedAt": "2020-10-14T13:59:54.047Z"
     }
    ],
-  "pageInfo": { ... }
+  "pageInfo": { /* object */ }
 }
 ```
 
@@ -200,9 +200,9 @@ Example:
 
 Example:
 
-```json
+```jsonc
     {
-      "items": [ ... ],
+      "items": [ /* array */ ],
       "pageInfo": {
         "previous": "/alert-management/customer/CTA123456789/alerts?size=10&before=b641415c-fa6a-467d-b052-5a3deacf2992",
         "next": "/alert-management/customer/CTA123456789/alerts?size=10&after=32c43ccb-20b7-4e39-a2ab-d05791ae23f0",
