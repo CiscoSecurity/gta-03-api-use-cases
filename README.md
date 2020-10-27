@@ -16,7 +16,7 @@ $ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
 
 You'll get a paginated collection response:
 
-```json
+```jsonc
 {
   "items": [
     {
@@ -29,13 +29,11 @@ You'll get a paginated collection response:
       "modifiedAt": "2020-10-14T13:59:54.047Z"
     }
   ],
-  "pageInfo": { ... },
+  "pageInfo": { /* object */ },
 }
 ```
 
 You can learn more about [how the pagination works](#pagination) or see our example on [how to use pagination to get all collection items](#getting-all-items).
-
-Description of individual fields is available in our [OpenAPI documentation](https://api.cta.eu.amp.cisco.com/docs/).
 
 ## Synchronize Alerts
 
@@ -118,14 +116,12 @@ $ curl -X PATCH \
 
 Available `AlertState` values:
 
-* `New` 
+* `New`
 * `Investigating`
 * `Remediating`
 * `Remediated`
 * `Ignored`
 * `FalsePositive`
-
-For more information see `AlertState` in our [OpenAPI documentation](https://api.cta.eu.amp.cisco.com/docs/).
 
 > To reset Alert state back to `New`, you can also call `DELETE` method on the `/state` resource.
 
@@ -162,10 +158,10 @@ All resources providing a collection of items are paginated by default. Cursor b
 
 All paginated resource responses adhere to the following shape:
 
-```json
+```jsonc
 {
-  "items": [ ... ],   // array
-  "pageInfo": { ... } // object
+  "items": [ /* array */ ],
+  "pageInfo": { /* object */ }
 }
 ```
 
@@ -177,7 +173,7 @@ In case there are no matching objects available, `items` is an empty array `[]`.
 
 Example:
 
-```json
+```jsonc
 {
   "items": [
     {
@@ -190,7 +186,7 @@ Example:
       "modifiedAt": "2020-10-14T13:59:54.047Z"
     }
    ],
-  "pageInfo": { ... }
+  "pageInfo": { /* object */ }
 }
 ```
 
@@ -200,9 +196,9 @@ Example:
 
 Example:
 
-```json
+```jsonc
     {
-      "items": [ ... ],
+      "items": [ /* array */ ],
       "pageInfo": {
         "previous": "/alert-management/customer/CTA123456789/alerts?size=10&before=b641415c-fa6a-467d-b052-5a3deacf2992",
         "next": "/alert-management/customer/CTA123456789/alerts?size=10&after=32c43ccb-20b7-4e39-a2ab-d05791ae23f0",
@@ -305,3 +301,10 @@ async function getAllAlerts() {
     return alerts;
 }
 ```
+
+## References
+
+For more information see:
+
+* Cognitive Intelligence [OpenAPI documentation](https://api.cta.eu.amp.cisco.com/docs/)
+* Cognitive Intelligence in [Cisco ScanCenter Administrator Guide](http://www.cisco.com/c/en/us/td/docs/security/web_security/scancenter/administrator/guide/b_ScanCenter_Administrator_Guide/b_ScanCenter_Administrator_Guide_chapter_011110.html)
