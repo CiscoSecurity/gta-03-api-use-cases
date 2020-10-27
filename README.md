@@ -305,3 +305,10 @@ async function getAllAlerts() {
     return alerts;
 }
 ```
+
+## References
+
+For more information see:
+
+* Cognitive Intelligence [OpenAPI documentation](https://api.cta.eu.amp.cisco.com/docs/)
+* Cognitive Intelligence in [Cisco ScanCenter Administrator Guide](http://www.cisco.com/c/en/us/td/docs/security/web_security/scancenter/administrator/guide/b_ScanCenter_Administrator_Guide/b_ScanCenter_Administrator_Guide_chapter_011110.html)
