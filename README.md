@@ -35,8 +35,6 @@ You'll get a paginated collection response:
 
 You can learn more about [how the pagination works](#pagination) or see our example on [how to use pagination to get all collection items](#getting-all-items).
 
-Description of individual fields is available in our [OpenAPI documentation](https://api.cta.eu.amp.cisco.com/docs/).
-
 ## Synchronize Alerts
 
 ### Get new Alerts triggered since the last synchronization
@@ -124,8 +122,6 @@ Available `AlertState` values:
 * `Remediated`
 * `Ignored`
 * `FalsePositive`
-
-For more information see `AlertState` in our [OpenAPI documentation](https://api.cta.eu.amp.cisco.com/docs/).
 
 > To reset Alert state back to `New`, you can also call `DELETE` method on the `/state` resource.
 
