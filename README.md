@@ -116,7 +116,7 @@ $ curl -X PATCH \
 
 Available `AlertState` values:
 
-* `New` 
+* `New`
 * `Investigating`
 * `Remediating`
 * `Remediated`
