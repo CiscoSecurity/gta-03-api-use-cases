@@ -12,7 +12,7 @@ ACCESS_TOKEN = "YOUR_VALID_ACCESS_TOKEN"
 
 PREVIOUS_SIGHTING_MODIFIED_AT_FILENAME = "previous_sighting_modified_at.txt"
 
-API_HOST_NAME = "https://staging.api.cta.eu.amp.cisco.com"
+API_HOST_NAME = "https://api.cta.eu.amp.cisco.com"
 DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
