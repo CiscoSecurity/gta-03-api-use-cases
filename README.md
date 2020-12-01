@@ -267,40 +267,189 @@ $ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
 
 To get all collection items, call `next` page URLs from the previous responses until next page is not available (`hasNextPage=false`).
 
-Written in simplified code for alerts it can be logically done like in this javascript snippet:
+Written in simplified code for alerts it can be logically done like in this python snippet:
 
-```javascript
-const API_HOST_NAME = 'https://api.cta.eu.amp.cisco.com';
-const CUSTOMER_ID = 'YOUR_CUSTOMER_ID';
-const ACCESS_TOKEN = 'YOUR_VALID_ACCESS_TOKEN';
+```python
+import requests
 
-let fetchUrl = `/alert-management/customer/${CUSTOMER_ID}/alerts`
+CUSTOMER_ID = "YOUR_CUSTOMER_ID"
+ACCESS_TOKEN = "YOUR_VALID_ACCESS_TOKEN"
 
-async function getAllAlerts() {
-    const alerts = [];
+API_HOST_NAME = "https://api.cta.eu.amp.cisco.com"
+FETCH_ALERTS_URL = "/alert-management/customer/" + CUSTOMER_ID + "/alerts"
 
-    do {
-        // request for page of items
-        const response = await fetch(`${API_HOST_NAME}${fetchUrl}`, {
-            headers: {
-                Authorization: `Bearer ${ACCESS_TOKEN}`,
-                Accept: 'application/json'
-            }
-        });
-        const data = await response.json();
 
-        // collect all received items together, preserve order
-        alerts = [...alerts, ...data.items];
+def get_all_alerts():
+    alerts = []
+    fetch_url = FETCH_ALERTS_URL
 
-        // set fetchUrl to next page
-        fetchUrl = data.pageInfo.next;
+    while True:
+        # request for page of item
+        response = requests.get(API_HOST_NAME + fetch_url,
+                                headers={
+                                    "Authorization": "Bearer " + ACCESS_TOKEN,
+                                    "Accept": "application/json"
+                                })
+        data = response.json()
 
-        // repeat loop when next page is available
-    } while(data.pageInfo.hasNextPage);
+        # collect all received items together, preserve order
+        alerts = alerts + data["items"]
 
-    return alerts;
-}
+        # set fetchUrl to next page
+        fetch_url = data["pageInfo"]["next"]
+
+        # repeat loop when next page is available
+        if not data["pageInfo"]["hasNextPage"]:
+            break
+
+    return alerts
+
+
+print(get_all_alerts())
 ```
+
+> This script is available in the `get_all_alerts.py` file.
+
+## Synchronizing external SIEM
+
+In addition to `Alerts`, Cognitive Intelligence API also offers more granular information like `ThreatOccurrences` or `Sightings`.
+
+> Learn more about `ThreatOccurrence` and `Sighting` in
+>[Cognitive Intelligence Documentation](http://www.cisco.com/c/en/us/td/docs/security/web_security/scancenter/administrator/guide/b_ScanCenter_Administrator_Guide/b_ScanCenter_Administrator_Guide_chapter_011110.html)
+>.
+
+To get the first page of `ThreatOccurrences`, use the following query:
+
+```console
+$ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+       -H "Accept: application/json" \
+  https://api.cta.eu.amp.cisco.com/threat-detection/customer/{CUSTOMER_ID}/threat-occurrences
+```
+
+To get the first page of `Sightings`:
+
+```console
+$ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+       -H "Accept: application/json" \
+  https://api.cta.eu.amp.cisco.com/network-behavior-anomaly-detection/customer/{CUSTOMER_ID}/sightings
+```
+
+Each convicting `Sighting` can belong to one or more `ThreatOccurrences`. This can lead to processing a single convicting `Sighting` multiple times. However relation to multiple `ThreatOccurrences` is quite rare.
+
+Most convicting `Sightings` contain `securityAnnotation`, which represents key observations used for detecting threat or malicious behavior.
+
+### Iterating over Sightings hierarchically with an Alert and a ThreatOccurrence in the context
+
+To put everything together:
+
+1. Iterate over all `Alerts` (as described in previous sections).
+1. For each `Alert`, iterate over all its `ThreatOccurrences`.
+1. For each `ThreatOccurrence`, iterate over all its convicting `Sightings`.
+
+Optionally, to get a better insight, you can also iterate over all contextual `Sightings` using:
+
+```console
+$ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+       -H "Accept: application/json" \
+  https://api.cta.eu.amp.cisco.com/threat-detection/customer/{CUSTOMER_ID}/threat-occurrences/{THERAT_OCCURRENCE_ID}/sightings/contextual
+```
+
+Beware that each contextual `Sighting` spotted on particular `Asset` belongs to every
+`ThreatOccurrence` detected on this `Asset`. Therefore it's quite common for one contextual `Sighting` to belong to several
+`ThreatOccurrences`. This can lead to processing a single contextual `Sighting` multiple times.
+
+#### Example
+
+```python
+CUSTOMER_ID = "YOUR_CUSTOMER_ID"
+
+
+def build_alert_threat_occurrences_url(alert_id):
+    return "/alert-management/customer/" + CUSTOMER_ID + "/alerts/" + alert_id + "/threat-occurrences"
+
+
+def build_threat_occurrence_convicting_sightings_url(threat_occurrence_id):
+    return "/threat-detection/customer/" + CUSTOMER_ID + "/threat-occurrences/" + threat_occurrence_id + "/sightings/convicting"
+
+
+def start():
+    alerts_iterator = CollectionIterator("/alert-management/customer/" + CUSTOMER_ID + "/alerts")
+
+    while alerts_iterator.has_next():
+        alert = alerts_iterator.next()
+
+        threat_occurrences_iterator = CollectionIterator(build_alert_threat_occurrences_url(alert["id"]))
+
+        while threat_occurrences_iterator.has_next():
+            threat_occurrence = threat_occurrences_iterator.next()
+
+            sightings_iterator = CollectionIterator(build_threat_occurrence_convicting_sightings_url(threat_occurrence["id"]))
+
+            while sightings_iterator.has_next():
+                sighting = sightings_iterator.next()
+                process_sighting(alert, threat_occurrence, sighting)
+```
+
+> `CollectionIterator` class is available in the `get_security_annotations.py` file. It implements `has_next` and `next` methods to be able to go through all pages of items of each individual collection.
+
+Method `process_sighting` represents whatever processing of  `Sighting` you wish to do, with access to the parent `ThreatOccurrence` and its parent `Alert`.
+
+For simplicity we ignore potential duplicities of convicting `Sightings`.
+
+#### Repeated iterations over Sightings
+
+To automate the process of working with `Sightings`, e.g. for importing to SIEM, you usually need to process
+only new or updated `Sightings`.
+
+Each `Sighting` (and `ThreatOccurrence`) has two date fields available:
+
+* `detectedAt` - instant when this entity was created by the classification engine
+* `modifiedAt` - instant when this entity was last updated by the classification engine
+
+Each `Sighting` and `ThreatOccurrence` can change over time, so use use `modifiedAt` when interested in all the updates.
+
+When running first synchronization of `Sightings`, saving `modifiedAt` is important for the next synchronization, especially maximum `modifiedAt` value across all `Sightings`.
+
+In all subsequent synchronizations, compare each `Sighting.modifiedAt` with maximum `modifiedAt` from previous
+synchronization to process only new or updated `Sightings`.
+
+> Because `Sighting` observables are aggregated, it's not possible to distinguish between old attributes values and new ones. `Sighting` needs to be processed as a whole.
+
+### Importing Sightings to Splunk
+
+Working example script is available in the  `get_security_annotations.py` file. It can be used as a template for writing more complex scripts.
+
+> Python 2.7+ is required to run the code.
+
+To get started, modify the example script and provide your:
+
+* `CUSTOMER_ID`
+* valid `ACCESS_TOKEN`
+* full path to the file in `PREVIOUS_SIGHTING_MODIFIED_AT_FILENAME`
+
+The script output is generated in `log_sighting_attributes` method and it's in JSON format. Use Splunk's pre-defined
+source type `_json` to process output of the script.
+
+After each run, the example script persists maximal `modifiedAt` across all processed `Sightings`.
+
+To run full
+processing again, delete the file specified in the `PREVIOUS_SIGHTING_MODIFIED_AT_FILENAME` variable.
+
+> The example script only returns specifically selected fields from each object but can be modified to determine which fields to export.
+
+### Iterating over Flows
+
+In case you need even more granular data, you can also iterate over `Flows` resource:
+
+```console
+$ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+       -H "Accept: application/json" \
+  https://api.cta.eu.amp.cisco.com/network-behavior-anomaly-detection/customer/{CUSTOMER_ID}/sightings/{SIGHTING_ID}/flows
+```
+
+`Flow` is immutable and its' `timeStamp` field indicates when it was observed in the network.
+
+> Beware that there could be a magnitude more of `Flows` than `Sightings`. To get the best value out of Cognitive Intelligence, it's usually better to work with `Alerts`, `ThreatOccurrences` and `Sightings` first.
 
 ## References
 
