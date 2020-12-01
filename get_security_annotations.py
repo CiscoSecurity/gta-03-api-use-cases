@@ -99,17 +99,19 @@ def build_alert_threat_occurrences_url(alert_id):
 
 
 def build_threat_occurrence_convicting_sightings_url(threat_occurrence_id):
-    return "/threat-detection/customer/" + CUSTOMER_ID + "/threat-occurrences/" + threat_occurrence_id + "/anomalies/convicting"  # TODO - anomalies -> sightings
+    return "/threat-detection/customer/" + CUSTOMER_ID + "/threat-occurrences/" + threat_occurrence_id + "/sightings/convicting"
 
 
 def build_threat_occurrence_contextual_sightings_url(threat_occurrence_id):
-    return "/threat-detection/customer/" + CUSTOMER_ID + "/threat-occurrences/" + threat_occurrence_id + "/anomalies/contextual"  # TODO - anomalies -> sightings
+    return "/threat-detection/customer/" + CUSTOMER_ID + "/threat-occurrences/" + threat_occurrence_id + "/sightings/contextual"
 
 
 def log_sighting_attributes(alert, threat_occurrence, sighting):
     row = {
         "indexTime": datetime.datetime.now().strftime(DATETIME_FORMAT),
         "alertId": alert["id"],
+        "alertState": alert["state"],
+        "risk": alert["risk"],
         "affectedAssetId": threat_occurrence["affectedAssetId"],
         "threatOccurrenceId": threat_occurrence["id"],
         "confidence": threat_occurrence["confidence"],
@@ -117,15 +119,15 @@ def log_sighting_attributes(alert, threat_occurrence, sighting):
         "sightingDetectedAt": sighting["detectedAt"],
         "sightingModifiedAt": sighting["modifiedAt"],
         "severity": sighting["severity"],
-        "eventTypeId": sighting["anomalyTypeId"],  # TODO - anomalyTypeId -> eventTypeId
+        "eventTypeId": sighting["eventTypeId"],
         "sightingTitle": sighting["title"],
         "sightingSubtitle": sighting["subtitle"],
     }
 
-    if sighting["securityAnnotationRaw"]:  # TODO - securityAnnotationRaw -> securityAnnotation
+    if sighting["securityAnnotation"]:
         row.update({
-            "securityAnnotationId": sighting["securityAnnotationRaw"]["id"],
-            "securityAnnotationAttributes": sighting["securityAnnotationRaw"]["requiredAttributes"]
+            "securityAnnotationId": sighting["securityAnnotation"]["id"],
+            "securityAnnotationAttributes": sighting["securityAnnotation"]["requiredAttributes"]
         })
 
     print(json.dumps(row))
