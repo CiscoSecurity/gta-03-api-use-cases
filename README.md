@@ -315,7 +315,7 @@ print(get_all_alerts())
 In addition to `Alerts`, Global Threat Alerts API also offers more granular information like `ThreatDetections` or `Events`.
 
 > Learn more about `ThreatDetection` and `Event` in
->[Global Threat Alerts Documentation](http://www.cisco.com/c/en/us/td/docs/security/web_security/scancenter/administrator/guide/b_ScanCenter_Administrator_Guide/b_ScanCenter_Administrator_Guide_chapter_011110.html)
+>[Global Threat Alerts Documentation](https://www.cisco.com/c/en/us/td/docs/security/cognitive/cognitive-intelligence-user-guide/m_dashboard.html)
 >.
 
 To get the first page of `ThreatDetections`, use the following query:
