@@ -455,4 +455,4 @@ $ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
 For more information see:
 
 * Global Threat Alerts [OpenAPI documentation](https://api.cta.eu.amp.cisco.com/docs/)
-* Global Threat Alerts in [Cisco ScanCenter Administrator Guide](https://www.cisco.com/c/en/us/td/docs/security/cognitive/cognitive-intelligence-user-guide/m_dashboard.html)
+* Global Threat Alerts in [Cisco Global Threat Alerts User Guide](https://www.cisco.com/c/en/us/td/docs/security/cognitive/cognitive-intelligence-user-guide/m_dashboard.html)
