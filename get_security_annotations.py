@@ -6,9 +6,13 @@ import os
 import sys
 import datetime
 import json
+from api_client import get_authorization
 
 CUSTOMER_ID = "YOUR_CUSTOMER_ID"
-ACCESS_TOKEN = "YOUR_VALID_ACCESS_TOKEN"
+
+SECUREX_CLIENT_ID = "YOUR_SECUREX_CLIENT_ID"
+SECUREX_CLIENT_PASSWORD = "YOUR_SECUREX_CLIENT_PASSWORD"
+SECUREX_VISIBILITY_HOST_NAME = "YOUR_SECUREX_VISIBILITY_HOST_NAME"
 
 PREVIOUS_EVENT_MODIFIED_AT_FILENAME = "previous_event_modified_at.txt"
 
@@ -78,7 +82,11 @@ class CollectionIterator:
     def __fetch_next_page(self):
         response = requests.get(API_HOST_NAME + self.next_page_url,
                                 headers={
-                                    "Authorization": "Bearer " + ACCESS_TOKEN,
+                                    "Authorization": get_authorization(
+                                        SECUREX_VISIBILITY_HOST_NAME,
+                                        SECUREX_CLIENT_ID,
+                                        SECUREX_CLIENT_PASSWORD
+                                    ),
                                     "Accept": "application/json"
                                 })
         data = response.json()
@@ -117,7 +125,7 @@ def log_event_attributes(alert, threat_detection, event):
         "eventDetectedAt": event["detectedAt"],
         "eventModifiedAt": event["modifiedAt"],
         "severity": event["severity"],
-        "eventTypeId": event["eventTypeId"],
+        "securityEventTypeId": event["securityEventTypeId"],
         "eventTitle": event["title"],
         "eventSubtitle": event["subtitle"],
     }

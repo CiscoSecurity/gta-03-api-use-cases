@@ -1,8 +1,47 @@
 # Using Global Threat Alerts (formerly Cognitive Intelligence) API
 
-You'll need a valid `ACCESS_TOKEN` to access Global Threat Alerts API.
+To access global threat alerts API, you need to have enabled integration with Cognitive Threat Response(CTR)/SecureX
+and valid SecureX API client credentials. You can find information on creating it
+in [Getting API Access Token](https://api.cta.eu.amp.cisco.com/docs/#/authentication) GTA documentation.
+Specifically you'll need:
+* Client ID (`SECUREX_CLIENT_ID`)
+* Client Password (`SECUREX_CLIENT_PASSWORD`)
+* Regional API endpoint (`SECUREX_VISIBILITY_HOST_NAME`)
 
-Most resources require you to know your `CUSTOMER_ID`. You can find it in [UI](https://cognitive.cisco.com/ui) under the user icon in the main navigation.
+Most resources require you to know your `CUSTOMER_ID`. You can find it in [UI](https://cognitive.cisco.com/ui) under
+the user icon in the main navigation.
+
+## Authentication
+
+When you have available SecureX client ID (`SECUREX_CLIENT_ID`), password (`SECUREX_CLIENT_PASSWORD`), and regional
+API endpoint (`SECUREX_VISIBILITY_HOST_NAME`) you can now ask for token:
+
+```console
+$ curl -X POST \
+     -u "${SECUREX_CLIENT_ID}:${SECUREX_CLIENT_PASSWORD}" \
+     -H 'Content-Type: application/x-www-form-urlencoded' \
+     -H 'Accept: application/json' \
+     -d 'grant_type=client_credentials' \
+     'https://${SECUREX_VISIBILITY_HOST_NAME}/iroh/oauth2/token'
+```
+
+You'll get the token response:
+```json
+{
+    "access_token": "ey..example..Eg",
+    "token_type": "bearer",
+    "expires_in": 600,
+    "scope": "casebook"
+}
+```
+To construct authorization header (in form `Authorization: <type> <credentials>`) you need to combine information
+from `token_type` and `access_token`. We do translate `"token_type": "bearer"` to type `Bearer` and use `access_token`
+value as credentials.
+
+For examples used in the rest of the document, we store `access_token` response value to `ACCESS_TOKEN` variable.
+
+> Numeric value in `expires_in` shows us current token validity - this one is valid for 600 seconds (10 minutes).
+> You need to refresh the token before it expires, otherwise you'll get "401 Unauthorized" response.
 
 ## Basic usage
 
