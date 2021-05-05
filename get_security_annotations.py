@@ -100,6 +100,31 @@ class CollectionIterator:
         return self.current_page_items_pointer < len(self.current_page_items)
 
 
+def get_asset(asset_id):
+    response = requests.get(API_HOST_NAME + build_asset_url(asset_id),
+                            headers={
+                                "Authorization": get_authorization(
+                                    SECUREX_VISIBILITY_HOST_NAME,
+                                    SECUREX_CLIENT_ID,
+                                    SECUREX_CLIENT_PASSWORD
+                                ),
+                                "Accept": "application/json"
+                            })
+    return response.json()
+
+def get_threat_intel(threat_intel_id):
+    response = requests.get(API_HOST_NAME + build_threat_intel_url(threat_intel_id),
+                            headers={
+                                "Authorization": get_authorization(
+                                    SECUREX_VISIBILITY_HOST_NAME,
+                                    SECUREX_CLIENT_ID,
+                                    SECUREX_CLIENT_PASSWORD
+                                ),
+                                "Accept": "application/json"
+                            })
+    return response.json()
+
+
 def build_alert_threat_detections_url(alert_id):
     return "/alert-management/customer/" + CUSTOMER_ID + "/alerts/" + alert_id + "/threat-detections"
 
@@ -112,19 +137,31 @@ def build_threat_detection_contextual_events_url(threat_detection_id):
     return "/threat-detection/customer/" + CUSTOMER_ID + "/threat-detections/" + threat_detection_id + "/events/contextual"
 
 
-def log_event_attributes(alert, threat_detection, event):
+def build_asset_url(asset_id):
+    return "/asset-management/customer/" + CUSTOMER_ID + "/assets/" + asset_id
+
+
+def build_threat_intel_url(threat_intel_id):
+    return "/threat-catalog/records/" + threat_intel_id
+
+
+def log_event_attributes(alert, threat_intel_record, asset, threat_detection, event):
     row = {
         "indexTime": datetime.datetime.now().strftime(DATETIME_FORMAT),
         "alertId": alert["id"],
         "alertState": alert["state"],
+        "assumedOwner": asset["assumedOwner"],
         "risk": alert["risk"],
+        "threatTitle": threat_intel_record["title"],
+        "threatCategory": threat_intel_record["category"],
+        "threatSubCategory": threat_intel_record["subcategory"],
+        "severity": threat_intel_record["severity"],
         "affectedAssetId": threat_detection["affectedAssetId"],
         "threatDetectionId": threat_detection["id"],
         "confidence": threat_detection["confidence"],
         "eventId": event["id"],
         "eventDetectedAt": event["detectedAt"],
         "eventModifiedAt": event["modifiedAt"],
-        "severity": event["severity"],
         "securityEventTypeId": event["securityEventTypeId"],
         "eventTitle": event["title"],
         "eventSubtitle": event["subtitle"],
@@ -139,13 +176,13 @@ def log_event_attributes(alert, threat_detection, event):
     print(json.dumps(row))
 
 
-def process_events(alert, threat_detection, events_iterator, previous_max_event_modified_at, max_event_modified_at):
+def process_events(alert, threat_detection, threat_intel_record, asset, events_iterator, previous_max_event_modified_at, max_event_modified_at):
     while events_iterator.has_next():
         event = events_iterator.next()
 
         modified_at_event_datetime = parse_iso_datetime(event["modifiedAt"])
         if modified_at_event_datetime > previous_max_event_modified_at:
-            log_event_attributes(alert, threat_detection, event)
+            log_event_attributes(alert, threat_intel_record, asset, threat_detection, event)
 
             if modified_at_event_datetime > max_event_modified_at:
                 max_event_modified_at = modified_at_event_datetime
@@ -170,14 +207,16 @@ def main():
         # iterate through all threat_detections
         while threat_detections_iterator.has_next():
             threat_detection = threat_detections_iterator.next()
+            asset = get_asset(threat_detection["affectedAssetId"])
+            threat_intel_record = get_threat_intel(threat_detection["threatIntelRecordId"])
 
             # iterate through all convicting events
             convicting_events_iterator = CollectionIterator(build_threat_detection_convicting_events_url(threat_detection["id"]))
-            max_event_modified_at = process_events(alert, threat_detection, convicting_events_iterator, previous_max_event_modified_at, max_event_modified_at)
+            max_event_modified_at = process_events(alert, threat_detection, threat_intel_record, asset, convicting_events_iterator, previous_max_event_modified_at, max_event_modified_at)
 
             # iterate through all contextual events
             contextual_events_iterator = CollectionIterator(build_threat_detection_contextual_events_url(threat_detection["id"]))
-            max_event_modified_at = process_events(alert, threat_detection, contextual_events_iterator, previous_max_event_modified_at, max_event_modified_at)
+            max_event_modified_at = process_events(alert, threat_detection, threat_intel_record, asset, contextual_events_iterator, previous_max_event_modified_at, max_event_modified_at)
 
     # persist maximal "modifiedAt" for next run
     write_max_event_modified_at(max_event_modified_at)
