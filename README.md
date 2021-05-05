@@ -463,7 +463,8 @@ Working example script is available in the  `get_security_annotations.py` file. 
 To get started, modify the example script and provide your:
 
 * `CUSTOMER_ID`
-* valid `ACCESS_TOKEN`
+* valid SecureX credentials - `SECUREX_CLIENT_ID` and `SECUREX_CLIENT_PASSWORD`
+* SecureX visibility host name - `SECUREX_VISIBILITY_HOST_NAME`
 * full path to the file in `PREVIOUS_EVENT_MODIFIED_AT_FILENAME`
 
 The script output is generated in `log_event_attributes` method and it's in JSON format. Use Splunk's pre-defined
