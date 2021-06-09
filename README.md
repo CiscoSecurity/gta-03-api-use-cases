@@ -1,8 +1,8 @@
 # Using Global Threat Alerts (formerly Cognitive Intelligence) API
 
-To access global threat alerts API, you need to have enabled integration with Cognitive Threat Response(CTR)/SecureX
+To access global threat alerts API, you need to have enabled integration with Cognitive Threat Response/SecureX
 and valid SecureX API client credentials. You can find information on creating it
-in [Getting API Access Token](https://api.cta.eu.amp.cisco.com/docs/#/authentication) GTA documentation.
+in [Getting API Access Token](https://api.cta.eu.amp.cisco.com/docs/#/authentication) global threat alerts documentation.
 Specifically you'll need:
 * Client ID (`SECUREX_CLIENT_ID`)
 * Client Password (`SECUREX_CLIENT_PASSWORD`)
@@ -22,18 +22,28 @@ $ curl -X POST \
      -H 'Content-Type: application/x-www-form-urlencoded' \
      -H 'Accept: application/json' \
      -d 'grant_type=client_credentials' \
-     'https://${SECUREX_VISIBILITY_HOST_NAME}/iroh/oauth2/token'
+  "https://${SECUREX_VISIBILITY_HOST_NAME}/iroh/oauth2/token"
 ```
 
-You'll get the token response:
+You'll get the token response (200 OK):
 ```json
 {
-    "access_token": "ey..example..Eg",
+    "access_token": "ey..this.is.very.long.in.reality.....example..Eg",
     "token_type": "bearer",
     "expires_in": 600,
     "scope": "casebook"
 }
 ```
+In case something went wrong you'll get "400 Bad Request" with explanation in "error_description",
+e.g. for invalid client ID:
+```json
+{
+    "error": "invalid_client",
+    "error_description": "unknown client",
+    "error_uri": "https://tools.ietf.org/html/rfc6749#section-5.2"
+}
+```
+
 To construct authorization header (in form `Authorization: <type> <credentials>`) you need to combine information
 from `token_type` and `access_token`. We do translate `"token_type": "bearer"` to type `Bearer` and use `access_token`
 value as credentials.
@@ -50,7 +60,7 @@ Use the `/alerts` resource to get `Alerts`:
 ```console
 $ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
        -H "Accept: application/json" \
-  https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts
+  "https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts"
 ```
 
 You'll get a paginated collection response:
@@ -76,43 +86,43 @@ You can learn more about [how the pagination works](#pagination) or see our exam
 
 ## Synchronize Alerts
 
-### Get new Alerts triggered since the last synchronization
+### Get new Alerts triggered after the last synchronization
 
-For initial synchronization of `Alerts`, use the `/alerts` resource with `sort=triggeredAt:asc` parameter, eg:
+For initial synchronization of `Alerts`, use the `/alerts` resource with `sort=triggeredAt:asc` parameter:
 
 ```console
 $ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
        -H "Accept: application/json" \
-  https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts?sort=triggeredAt:asc
+  "https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts?sort=triggeredAt:asc"
 ```
 
 To get only newly created `Alerts` in subsequent synchronizations:
 
 1. take `triggeredAt` of last `Alert` from previous request (it's the latest because of `sort=triggeredAt:asc`)
-1. use it for new request as a `triggeredSince` parameter
+1. use it for new request as a `triggeredAfter` parameter
 
-Eg:
-
-```console
-$ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-       -H "Accept: application/json" \
-  https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts?triggeredSince=2020-09-05T12:00:00Z&sort=triggeredAt:asc
-```
-
-See [Date-time format](#date-time-format) for more information about `triggeredSince` format.
-
-### Get modified (and new) Alerts since a specific point in time
-
-Use the `/alerts` resource with `modifiedSince=[date-time]` parameter, eg:
+Example:
 
 ```console
 $ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
        -H "Accept: application/json" \
-  https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts?modifiedSince=2020-09-05T12:00:00Z
+  "https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts?triggeredAfter=2020-09-05T12:00:00Z&sort=triggeredAt:asc"
 ```
-You'll get all `Alerts` with `Alert.modifiedAt` value greater than value requested in `modifiedSince` parameter.
 
-See [Date-time format](#date-time-format) for more information about `modifiedSince` format.
+See [Date-time format](#date-time-format) for more information about `triggeredAfter` format.
+
+### Get modified (and new) Alerts after a specific point in time
+
+Use the `/alerts` resource with `modifiedAfter=[date-time]` parameter:
+
+```console
+$ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+       -H "Accept: application/json" \
+  "https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts?modifiedAfter=2024-09-05T12:00:00Z"
+```
+You'll get all `Alerts` with `Alert.modifiedAt` value greater than value requested in `modifiedAfter` parameter.
+
+See [Date-time format](#date-time-format) for more information about `modifiedAfter` format.
 
 `Alert.modifiedAt` is initially the same as `Alert.triggeredAt` but changes when:
 
@@ -137,7 +147,7 @@ To get one Alert with a known `id`, use:
 ```console
 $ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
        -H "Accept: application/json" \
-  https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts/${ALERT_ID}
+  "https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts/${ALERT_ID}"
 ```
 
 ## Update Alert state
@@ -150,7 +160,7 @@ $ curl -X PATCH \
        -H "Accept: application/json" \
        -H "Content-Type: application/json" \
        --data '{"state":"Remediated"}' \
-  https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts/${ALERT_ID}/state
+  "https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts/${ALERT_ID}/state"
 ```
 
 Available `AlertState` values:
@@ -174,7 +184,7 @@ $ curl -X PATCH \
        -H "Accept: application/json" \
        -H "Content-Type: application/json" \
        --data '{"note":"Started investigation, our internal ticket ID=XXXXXX"}' \
-  https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts/${ALERT_ID}/note
+  "https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts/${ALERT_ID}/note"
 ```
 
 _**Caution:** When the alert is in the New state, the note may get deleted when alerts are recalculated. To prevent this, change the state of the alert to not New._
@@ -183,7 +193,7 @@ _**Caution:** When the alert is in the New state, the note may get deleted when 
 
 ## Date-time format
 
-For parameters like `triggeredSince`, `modifiedSince`, etc. use ISO 8601 date-time format as defined by [RFC 3339, section 5.6](https://tools.ietf.org/html/rfc3339#section-5.6).
+For parameters like `triggeredAfter`, `modifiedAfter`, etc. use ISO 8601 date-time format as defined by [RFC 3339, section 5.6](https://tools.ietf.org/html/rfc3339#section-5.6).
 
 Same format is also used for all date-time information in API responses.
 
@@ -253,10 +263,10 @@ Fields:
 
 * `previous`
   * a relative path to the previous page
-  * if the previous page does not exist, `null` is returned
+  * if the previous page does not exist or request method is POST, `null` is returned
 * `next`
   * a relative path to the next page
-  * if the next page does not exist, `null` is returned.
+  * if the next page does not exist or request method is POST, `null` is returned.
 * `hasPreviousPage` 
   * boolean value about the previous page existence
   * `true` means the previous page is available
@@ -265,11 +275,11 @@ Fields:
   * `true` means the next page is available
 * `startCursor`
   * value identifies the first item in the current results
-  * should be used to construct a request for the previous page
+  * should be used to construct a request for the previous page. Necessary when requesting collection resources with parameters using POST method. 
   * when the previous page is not available, `null` is returned
 * `endCursor`
   * value identifies the last item in the current results
-  * should be used to construct a request for the next page
+  * should be used to construct a request for the next page. Necessary when requesting collection resources with parameters using POST method.
   * when the next page is not available, `null` is returned
 
 ### Limiting results
@@ -285,20 +295,20 @@ Example:
 ```console
 $ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
        -H "Accept: application/json" \
-  https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts?size=10
+  "https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts?size=10"
 ```
 
 ### Getting the next page
 
-To get the next page of previous response, use `after=[endCursor]` query parameter in your next request, eg:
+To get the next page of previous response, use `after=[endCursor]` query parameter in your next request:
 
 ```console
 $ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
        -H "Accept: application/json" \
-  https://api.cta.eu.amp.cisco.com/alert-management/customer/CTA123456789/alerts?size=10&after=32c43ccb-20b7-4e39-a2ab-d05791ae23f0
+  "https://api.cta.eu.amp.cisco.com/alert-management/customer/CTA123456789/alerts?size=10&after=32c43ccb-20b7-4e39-a2ab-d05791ae23f0"
 ```
 
-> You can also use the `next` link from the `pageInfo`.
+> You can also use the `next` link from the `pageInfo` if available.
 
 > The similar situation is when you'd like to get `previous` page. You just need to use `before=[startCursor]` as parameter.
 
@@ -347,7 +357,7 @@ def get_all_alerts():
 print(get_all_alerts())
 ```
 
-> This script is available in the `get_all_alerts.py` file.
+> This script improved by direct usage of SecureX credential is available in the `get_all_alerts.py` file. 
 
 ## Synchronizing external SIEM
 
@@ -362,97 +372,193 @@ To get the first page of `ThreatDetections`, use the following query:
 ```console
 $ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
        -H "Accept: application/json" \
-  https://api.cta.eu.amp.cisco.com/threat-detection/customer/{CUSTOMER_ID}/threat-detections
+  "https://api.cta.eu.amp.cisco.com/threat-detection/customer/${CUSTOMER_ID}/threat-detections"
 ```
 
-To get the first page of `Events`:
+To get the first page of security `Events`:
 
 ```console
 $ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
        -H "Accept: application/json" \
-  https://api.cta.eu.amp.cisco.com/event-detection/customer/{CUSTOMER_ID}/events
+  "https://api.cta.eu.amp.cisco.com/event-detection/customer/${CUSTOMER_ID}/events"
 ```
 
-Each convicting `Event` can belong to one or more `ThreatDetections`. This can lead to processing a single convicting `Event` multiple times. However relation to multiple `ThreatDetections` is quite rare.
+### Modification Sequence Number
 
-Most convicting `Events` contain `securityAnnotation`, which represents key observations used for detecting threat or malicious behavior.
+Because there are potentially a lots of `ThreatDetections` and magnitude more `Events` we need to have mechanism
+how to get from API just new or updated items. We usually don't want to deal with e.g., all `Events` again when
+we already processed and synchronized part of them. Previously we introduced time based query parameters,
+especially on `Alert` level but such approach is not suitable here because in one moment lots of objects can be created.
+And yes, we can miss some important ones when relying just on time.
+
+For stable order of items returned in response we implemented `modification sequence number` mechanism.
+`Modification sequence number` is unique increasing number which is internally assigned to all `Events`, `ThreatDetections`
+and `Flows` when they are created or re-assigned when objects are updated. `modification sequence numbers`
+are only available in collection responses in `pageInfo`section for first and last item as `startCursor` and `endCursor` values.
+You only need to query collection with specific sort parameter`sort=modificationSequenceNumber` to get them.
+Such stable order of items in collection ensure we do not miss any important update and we can safely continue where we ended last time.
+
+> Only selected resources support `sort=modificationSequenceNumber`,
+> see Global Threat Alerts [OpenAPI documentation](https://api.cta.eu.amp.cisco.com/docs/) which resources are supported.
+
+See how we can use `sort=modificationSequenceNumber` on `/events/search` resource:
+
+```console
+$ curl -X POST \
+       -d '{"filter": {}}' \
+       -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+       -H "Accept: application/json" \
+       -H "Content-Type: application/json" \
+  "https://api.cta.eu.amp.cisco.com/event-detection/customer/${CUSTOMER_ID}/events/search?sort=modificationSequenceNumber"
+```
+
+The last paged response could be:
+
+```jsonc
+    {
+      "items": [ /* array */ ],
+      "pageInfo": {
+        "previous": null,
+        "next": null,
+        "hasNextPage": false,
+        "hasPreviousPage": true,
+        "startCursor": "25716998",
+        "endCursor": "25717281"
+      }
+    }
+```
+
+When e.g., next day we would like to get just increments, (new and updated) `Events` we need to remember `endCursor`
+value of the response (`25717281`) and repeat the query with `after` query parameter having `endCursor` as value (`after=25717281`):
+
+```console
+$ curl -X POST \
+       -d '{"filter": {}}' \
+       -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+       -H "Accept: application/json" \
+       -H "Content-Type: application/json" \
+  "https://api.cta.eu.amp.cisco.com/event-detection/customer/${CUSTOMER_ID}/events/search?sort=modificationSequenceNumber&after=25717281"
+```
+> See [Getting the next page](#getting-the-next-page) for more details about how to work with `pageInfo` object
 
 ### Iterating over Events hierarchically with an Alert and a ThreatDetection in the context
 
 To put everything together:
 
-1. Iterate over all `Alerts` (as described in previous sections).
-1. For each `Alert`, iterate over all its `ThreatDetections`.
-1. For each `ThreatDetection`, iterate over all its convicting `Events`.
+1. Iterate over all `Events` with `modificationSequenceNumber` stable sort (as described in previous sections) 
+   having reference to parent `ThreatDetections`. There is special resource for this purpose
+   `/threat-detection/customer/${CUSTOMER_ID}/enriched-events-with-threat-detection-ids`.
+1. Get all referred `ThreatDetections` with references to `Alerts`.
+   Use `/alert-management/customer/${CUSTOMER_ID}/enriched-threat-detections-with-alert-ids/search` 
+1. You can get `Alerts` one by one or use bulk resource to get them.
+   E.g., `/alert-management/customer/${CUSTOMER_ID}/alerts/search`
 
-Optionally, to get a better insight, you can also iterate over all contextual `Events` using:
+> `Events` without references to `ThreatDetections` are called "contextual" while `Events` with reference(s) are called "convicting".
 
-```console
-$ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-       -H "Accept: application/json" \
-  https://api.cta.eu.amp.cisco.com/threat-detection/customer/{CUSTOMER_ID}/threat-detections/{THERAT_DETECTION_ID}/events/contextual
-```
+#### Example (simplified)
 
-Beware that each contextual `Event` spotted on particular `Asset` belongs to every
-`ThreatDetection` detected on this `Asset`. Therefore it's quite common for one contextual `Event` to belong to several
-`ThreatDetections`. This can lead to processing a single contextual `Event` multiple times.
-
-#### Example
+Following example explains how to traverse objects from bottom to top, from `Events` to `Alerts`. It shows how to use 
+performance optimized resources and for simplification some parts like authorization are omitted.
+Approach described in this example is used in `get_security_annotations.py` file - when you'd like to try it out 
+start with this script file.
 
 ```python
 CUSTOMER_ID = "YOUR_CUSTOMER_ID"
 
-
-def build_alert_threat_detections_url(alert_id):
-    return "/alert-management/customer/" + CUSTOMER_ID + "/alerts/" + alert_id + "/threat-detections"
-
-
-def build_threat_detection_convicting_events_url(threat_detection_id):
-    return "/threat-detection/customer/" + CUSTOMER_ID + "/threat-detections/" + threat_detection_id + "/events/convicting"
-
-
 def start():
-    alerts_iterator = CollectionIterator("/alert-management/customer/" + CUSTOMER_ID + "/alerts")
+    events = []
+    threat_detection_ids = []
+    alert_ids = []
+    cached_context_objects = {}
 
+    # get all Events in stable order ensured by `modificationSequenceNumber` 
+    events_iterator = CollectionIterator(
+        collection_url_path="/threat-detection/customer/" + CUSTOMER_ID + "/enriched-events-with-threat-detection-ids",
+        query_params={
+            "sort": "modificationSequenceNumber",
+        })
+
+    # extract references to threat detections and keep them for final processing
+    while events_iterator.has_next():
+        event = events_iterator.next()
+        events.append(event)
+        threat_detection_ids.extend(event["threatDetectionIds"])
+
+    # bulk load threat detections
+    threat_detections_iterator = CollectionIterator(
+        collection_url_path="/alert-management/customer/" + CUSTOMER_ID + "/enriched-threat-detections-with-alert-ids/search",
+        request_body={
+            "filter": {
+                "threatDetectionIds": list(set(threat_detection_ids))
+            }
+        })
+
+    # extract references to alerts and keep threat detections in cache key=ID, value=OBJECT
+    while threat_detections_iterator.has_next():
+        threat_detection = threat_detections_iterator.next()
+        cached_context_objects[threat_detection["id"]] = threat_detection
+        alert_ids.extend(threat_detection["alertIds"])
+
+    # bulk load alerts
+    alerts_iterator = CollectionIterator(
+        collection_url_path="/alert-management/customer/" + CUSTOMER_ID + "/alerts/search",
+        request_body={
+            "filter": {
+                "alertIds": list(set(alert_ids))
+            }
+        })
+
+    # keep alerts in cache key=ID, value=OBJECT
     while alerts_iterator.has_next():
         alert = alerts_iterator.next()
+        cached_context_objects[alert["id"]] = alert
 
-        threat_detections_iterator = CollectionIterator(build_alert_threat_detections_url(alert["id"]))
-
-        while threat_detections_iterator.has_next():
-            threat_detection = threat_detections_iterator.next()
-
-            events_iterator = CollectionIterator(build_threat_detection_convicting_events_url(threat_detection["id"]))
-
-            while events_iterator.has_next():
-                event = events_iterator.next()
-                process_event(alert, threat_detection, event)
+    # Process
+    for event in events:
+        # get IDs references to threat detections from event (usually one)
+        threat_detection_ids = event["threatDetectionIds"]
+    
+        # process all possible threat detections
+        if len(threat_detection_ids) > 0:
+            # process event with threat detections (called "convicting" security event)
+            for threat_detection_id in threat_detection_ids:
+                # get parent objects to event - threat detections and alert
+                threat_detection_with_alert_ids = cached_context_objects[threat_detection_id]
+    
+                # get IDs references to alerts (usually one)
+                alert_ids = threat_detection_with_alert_ids["alertIds"]
+                for alert_id in alert_ids:
+                    alert = cached_context_objects[alert_id]
+    
+                    # log event with related objects - alert, threat detection
+                    log_event_attributes(event, threat_detection_with_alert_ids, alert)
+        else:
+            # process event without threat detections (called "contextual" security event)
+            log_event_attributes(event)
 ```
 
-> `CollectionIterator` class is available in the `get_security_annotations.py` file. It implements `has_next` and `next` methods to be able to go through all pages of items of each individual collection.
+> `CollectionIterator` class is available in the `api_client.py` file. It implements `has_next` and `next` methods
+> to be able to go through all pages of items of each individual collection.
+> In real usage you also need to provide `authorization_fn` argument - function able to provide on demand authorization header value.
 
-Method `process_event` represents whatever processing of  `Event` you wish to do, with access to the parent `ThreatDetection` and its parent `Alert`.
-
-For simplicity we ignore potential duplicities of convicting `Events`.
+Method `log_event_attributes` represents whatever processing of `Event` you wish to do, with access to the parent `ThreatDetection` and its parent `Alert`.
 
 #### Repeated iterations over Events
 
-To automate the process of working with `Events`, e.g. for importing to SIEM, you usually need to process
-only new or updated `Events`.
+You just need to remember events `endCursor` - available under `events_iterator.end_cursor` in previous script example and use it next time as `cursor` argument when
+constructing `CollectionIterator`:
 
-Each `Event` (and `ThreatDetection`) has two date fields available:
+```python
+    events_iterator = CollectionIterator(
+        collection_url_path="/threat-detection/customer/" + CUSTOMER_ID + "/enriched-events-with-threat-detection-ids",
+        query_params={
+            "sort": "modificationSequenceNumber",
+        },
+        cursor=previous_events_end_cursor
+    )
+```
 
-* `detectedAt` - instant when this entity was created by the classification engine
-* `modifiedAt` - instant when this entity was last updated by the classification engine
-
-Each `Event` and `ThreatDetection` can change over time, so use use `modifiedAt` when interested in all the updates.
-
-When running first synchronization of `Events`, saving `modifiedAt` is important for the next synchronization, especially maximum `modifiedAt` value across all `Events`.
-
-In all subsequent synchronizations, compare each `Event.modifiedAt` with maximum `modifiedAt` from previous
-synchronization to process only new or updated `Events`.
-
-> Because `Event` observables are aggregated, it's not possible to distinguish between old attributes values and new ones. `Event` needs to be processed as a whole.
+> Because `Event` observables are aggregated, it's not possible to distinguish between old attributes values and new ones inside `Event`. `Event` needs to be processed as a whole.
 
 ### Importing Events to Splunk
 
@@ -462,17 +568,16 @@ Working example script is available in the  `get_security_annotations.py` file. 
 
 To get started, modify the example script and provide your:
 
-* `CUSTOMER_ID`
 * valid SecureX credentials - `SECUREX_CLIENT_ID` and `SECUREX_CLIENT_PASSWORD`
 * SecureX visibility host name - `SECUREX_VISIBILITY_HOST_NAME`
-* full path to the file in `PREVIOUS_EVENT_MODIFIED_AT_FILENAME`
+* full path to the file in `EVENTS_END_CURSOR_FILENAME`
 
 The script output is generated in `log_event_attributes` method and it's in JSON format. Use Splunk's pre-defined
 source type `_json` to process output of the script.
 
-After each run, the example script persists maximal `modifiedAt` across all processed `Events`.
+After each run, the example script persists last processed event `endCursor` to file `EVENTS_END_CURSOR_FILENAME`.
 
-To run full processing again, delete the file specified in the `PREVIOUS_EVENT_MODIFIED_AT_FILENAME` variable.
+To run full processing again, delete the file specified in the `EVENTS_END_CURSOR_FILENAME` variable.
 
 > The example script only returns specifically selected fields from each object but can be modified to determine which fields to export.
 
@@ -481,14 +586,18 @@ To run full processing again, delete the file specified in the `PREVIOUS_EVENT_M
 In case you need even more granular data, you can also iterate over `Flows` resource:
 
 ```console
-$ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+$ curl -X POST
+       -d '{"filter": {}}'
+       -H "Authorization: Bearer ${ACCESS_TOKEN}" \
        -H "Accept: application/json" \
-  https://api.cta.eu.amp.cisco.com/event-detection/customer/{CUSTOMER_ID}/events/{EVENT_ID}/flows
+  "https://api.cta.eu.amp.cisco.com/event-detection/customer/${CUSTOMER_ID}/flows/search?sort=modificationSequenceNumber"
 ```
 
 `Flow` is immutable and its' `timeStamp` field indicates when it was observed in the network.
+`Flows` also support modification sequence number stable sort.
 
-> Beware that there could be a magnitude more of `Flows` than `Events`. To get the best value out of Global Threat Alerts, it's usually better to work with `Alerts`, `ThreatDetections` and `Events` first.
+> Beware that there could be a magnitude more of `Flows` than `Events`.
+> To get the best value out of Global Threat Alerts, it's usually better to work with `Alerts`, `ThreatDetections` and `Events` first.
 
 ## References
 
