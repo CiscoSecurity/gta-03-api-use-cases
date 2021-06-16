@@ -5,7 +5,7 @@ import os
 import sys
 import datetime
 import json
-from api_client import get_customer_id, get_authorization, CollectionIterator
+from api_client import ApiClient
 
 SECUREX_CLIENT_ID = "YOUR_SECUREX_CLIENT_ID"
 SECUREX_CLIENT_PASSWORD = "YOUR_SECUREX_CLIENT_PASSWORD"
@@ -19,20 +19,6 @@ EVENTS_END_CURSOR_FILENAME = "/events_end_cursor.txt"
 DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
-def customer_id():
-    return get_customer_id(
-        SECUREX_VISIBILITY_HOST_NAME,
-        SECUREX_CLIENT_ID,
-        SECUREX_CLIENT_PASSWORD)
-
-
-def authorization():
-    return get_authorization(
-        SECUREX_VISIBILITY_HOST_NAME,
-        SECUREX_CLIENT_ID,
-        SECUREX_CLIENT_PASSWORD)
-
-
 def read_events_end_cursor():
     if os.path.isfile(EVENTS_END_CURSOR_FILENAME):
         try:
@@ -42,8 +28,6 @@ def read_events_end_cursor():
         except IOError:
             sys.stderr.write("Error: failed to read events end cursor: " + EVENTS_END_CURSOR_FILENAME + "\n")
             sys.exit(1)
-    else:
-        return None
 
 
 def write_events_end_cursor(events_end_cursor):
@@ -55,27 +39,27 @@ def write_events_end_cursor(events_end_cursor):
         sys.exit(2)
 
 
-def build_alerts_search_url():
-    return "/alert-management/customer/" + customer_id() + "/alerts/search"
+def build_alerts_search_url(customer_id):
+    return "/alert-management/customer/" + customer_id + "/alerts/search"
 
 
-def build_assets_search_url():
-    return "/asset-management/customer/" + customer_id() + "/assets/search"
+def build_assets_search_url(customer_id):
+    return "/asset-management/customer/" + customer_id + "/assets/search"
 
 
 def build_threat_intel_url():
     return "/threat-catalog/records"
 
 
-def build_search_threat_detection_with_alert_id_url():
+def build_search_threat_detection_with_alert_id_url(customer_id):
     return "/alert-management/customer/" \
-           + customer_id() \
+           + customer_id \
            + "/enriched-threat-detections-with-alert-ids/search"
 
 
-def build_event_with_threat_detections_ids_url():
+def build_event_with_threat_detections_ids_url(customer_id):
     return "/threat-detection/customer/" \
-           + customer_id() \
+           + customer_id \
            + "/enriched-events-with-threat-detection-ids"
 
 
@@ -123,6 +107,8 @@ def log_event_attributes(event, affected_asset, threat_detection=None, alert=Non
 
 
 def main():
+    api_client = ApiClient(SECUREX_VISIBILITY_HOST_NAME, SECUREX_CLIENT_ID, SECUREX_CLIENT_PASSWORD)
+
     # read stored cursor of last security event item from previous script run (if any)
     # to process only new or modified events in current script run
     previous_events_end_cursor = read_events_end_cursor()
@@ -138,25 +124,22 @@ def main():
     affected_asset_ids = []
 
     # iterate over all security events sorted by unique modification sequence number ensuring no event is missed
-    events_iterator = CollectionIterator(
-        collection_url_path=build_event_with_threat_detections_ids_url(),
-        authorization_fn=authorization,
+    events_iterator = api_client.create_collection_iterator(
+        collection_url_path=build_event_with_threat_detections_ids_url(api_client.get_customer_id()),
         query_params={
             "sort": "modificationSequenceNumber",
         },
         cursor=previous_events_end_cursor
     )
     # remember events and get ids of related object (threat detections and assets) to "bulk load" them
-    while events_iterator.has_next():
-        event = events_iterator.next()
+    for event in events_iterator:
         events.append(event)
         threat_detection_ids.extend(event["threatDetectionIds"])
         affected_asset_ids.append(event["affectedAssetId"])
 
     # bulk load threat detections by their ids
-    threat_detections_iterator = CollectionIterator(
-        collection_url_path=build_search_threat_detection_with_alert_id_url(),
-        authorization_fn=authorization,
+    threat_detections_iterator = api_client.create_collection_iterator(
+        collection_url_path=build_search_threat_detection_with_alert_id_url(api_client.get_customer_id()),
         request_body={
             "filter": {
                 "threatDetectionIds": list(set(threat_detection_ids))
@@ -168,16 +151,14 @@ def main():
     threat_intel_record_ids = []
 
     # keep threat detections in "cached_context_objects" and extract IDs of alerts and threat intel records
-    while threat_detections_iterator.has_next():
-        threat_detection = threat_detections_iterator.next()
+    for threat_detection in threat_detections_iterator:
         cached_context_objects[threat_detection["id"]] = threat_detection
         alert_ids.extend(threat_detection["alertIds"])
         threat_intel_record_ids.append(threat_detection["threatIntelRecordId"])
 
     # bulk load assets by their ids
-    affected_asset_iterator = CollectionIterator(
-        collection_url_path=build_assets_search_url(),
-        authorization_fn=authorization,
+    affected_asset_iterator = api_client.create_collection_iterator(
+        collection_url_path=build_assets_search_url(api_client.get_customer_id()),
         request_body={
             "filter": {
                 "assetId": list(set(affected_asset_ids))
@@ -186,14 +167,12 @@ def main():
     )
 
     # keep assets in "cached_context_objects"
-    while affected_asset_iterator.has_next():
-        affected_asset = affected_asset_iterator.next()
+    for affected_asset in affected_asset_iterator:
         cached_context_objects[affected_asset["id"]] = affected_asset
 
     # bulk load alerts
-    alerts_iterator = CollectionIterator(
-        collection_url_path=build_alerts_search_url(),
-        authorization_fn=authorization,
+    alerts_iterator = api_client.create_collection_iterator(
+        collection_url_path=build_alerts_search_url(api_client.get_customer_id()),
         request_body={
             "filter": {
                 "alertIds": list(set(alert_ids))
@@ -202,14 +181,12 @@ def main():
     )
 
     # keep alerts in "cached_context_objects"
-    while alerts_iterator.has_next():
-        alert = alerts_iterator.next()
+    for alert in alerts_iterator:
         cached_context_objects[alert["id"]] = alert
 
     # bulk load threat intelligence records
-    threat_intel_records_iterator = CollectionIterator(
+    threat_intel_records_iterator = api_client.create_collection_iterator(
         collection_url_path=build_threat_intel_url(),
-        authorization_fn=authorization,
         request_body={
             "filter": {
                 "threatIntelRecordId": list(set(threat_intel_record_ids))
@@ -218,8 +195,7 @@ def main():
     )
 
     # keep threat intelligence records in "cached_context_objects"
-    while threat_intel_records_iterator.has_next():
-        threat_intel_record = threat_intel_records_iterator.next()
+    for threat_intel_record in threat_intel_records_iterator:
         cached_context_objects[threat_intel_record["id"]] = threat_intel_record
 
     # PROCESS EVENTS AND OTHER CONTEXTUAL OBJECTS
@@ -254,8 +230,9 @@ def main():
             log_event_attributes(event, affected_asset)
 
     # store events end_cursor for next script run
-    if events_iterator.end_cursor:
-        write_events_end_cursor(events_iterator.end_cursor)
+    if events_iterator.end_cursor():
+        write_events_end_cursor(events_iterator.end_cursor())
 
 
-main()
+if __name__ == "__main__":
+    main()
