@@ -390,7 +390,7 @@ $ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
 
 In general, there can be a lot of `ThreatDetections`, and an order of magnitude more `Events`. However, for any subsequent SIEM synchronizations (after the initial one), you are probably interested only in new and updated items, not the already processed ones.
 
-In the [previous section](#Synchronizing-external-SIEM), we have introduced time based query parameters, but such an approach is not always suitable. Especially on `Alert` level, many objects can get created at one moment. When this happens, you could even miss some important ones, when relying just on the time. To solve this, you can use the modification sequence number mechanism provided by the API.
+In the [previous section](#Synchronizing-external-SIEM), we have introduced time based query parameters, but such an approach is not always suitable. Especially on `Event` level, many objects can get created at one moment. When this happens, you could even miss some important ones, when relying just on the time. To solve this, you can use the modification sequence number mechanism provided by the API.
 
 Modification sequence number is a unique increasing number which is assigned to all `Events`, `ThreatDetections` and `Flows` as they are created, and is re-assigned when these objects are updated.
 
@@ -455,34 +455,36 @@ To put everything together:
 
 The following example explains how to traverse objects from bottom (`Events`) to top (`Alerts`). It also demonstrates how to use performance optimized resources.
 
-For simplification, some parts like authorization are omitted.
+For simplification, some parts are omitted.
 
 > The approach described in this example is used in the `get_security_annotations.py` file.
 
 ```python
+from api_client import ApiClient
+
 CUSTOMER_ID = "YOUR_CUSTOMER_ID"
 
 def start():
+    api_client = ApiClient(SECUREX_VISIBILITY_HOST_NAME, SECUREX_CLIENT_ID, SECUREX_CLIENT_PASSWORD)
     events = []
     threat_detection_ids = []
     alert_ids = []
     cached_context_objects = {}
 
     # get all Events in stable order ensured by `modificationSequenceNumber` 
-    events_iterator = CollectionIterator(
+    events_iterator = api_client.create_collection_iterator(
         collection_url_path="/threat-detection/customer/" + CUSTOMER_ID + "/enriched-events-with-threat-detection-ids",
         query_params={
             "sort": "modificationSequenceNumber",
         })
 
     # extract references to threat detections and keep them for final processing
-    while events_iterator.has_next():
-        event = events_iterator.next()
+    for event in events_iterator:
         events.append(event)
         threat_detection_ids.extend(event["threatDetectionIds"])
 
     # bulk load threat detections
-    threat_detections_iterator = CollectionIterator(
+    threat_detections_iterator = api_client.create_collection_iterator(
         collection_url_path="/alert-management/customer/" + CUSTOMER_ID + "/enriched-threat-detections-with-alert-ids/search",
         request_body={
             "filter": {
@@ -491,13 +493,12 @@ def start():
         })
 
     # extract references to alerts and keep threat detections in cache key=ID, value=OBJECT
-    while threat_detections_iterator.has_next():
-        threat_detection = threat_detections_iterator.next()
+    for threat_detection in threat_detections_iterator:
         cached_context_objects[threat_detection["id"]] = threat_detection
         alert_ids.extend(threat_detection["alertIds"])
 
     # bulk load alerts
-    alerts_iterator = CollectionIterator(
+    alerts_iterator = api_client.create_collection_iterator(
         collection_url_path="/alert-management/customer/" + CUSTOMER_ID + "/alerts/search",
         request_body={
             "filter": {
@@ -506,8 +507,7 @@ def start():
         })
 
     # keep alerts in cache key=ID, value=OBJECT
-    while alerts_iterator.has_next():
-        alert = alerts_iterator.next()
+    for alert in  alerts_iterator:
         cached_context_objects[alert["id"]] = alert
 
     # Process
@@ -534,16 +534,20 @@ def start():
             log_event_attributes(event)
 ```
 
-> The `CollectionIterator` class is available in the `api_client.py` file. It implements `has_next` and `next` methods, to be able to traverse through all the pages of each individual collection. In the real world usage, you also need to provide the `authorization_fn` argument - a function that's able to provide on demand authorization header value.
+> The `ApiClient` class is available in the `api_client.py` file. It helps you with authorization when accessing 
+> the API. It also implements `CollectionIterator` class which is `iterable` and which helps you to traverse through all the
+> pages of each individual collection. Use `create_collection_iterator` method on `ApiClient` instance to create 
+> `CollectionIterator` instance - it passes to it configured "self" (ApiClient) instance directly.
+> In the real world usage, you also need to provide the valid SecureX API host name and client credentials as `ApiClient` arguments.
 
 The `log_event_attributes` method represents whatever processing of the `Event` you would like to do, with the access to the parent `ThreatDetection` and its parent `Alert`.
 
 #### Repeated iterations over Events
 
-For any repeated iterations over `Events`, persist the value of the `endCursor` (available under `events_iterator.end_cursor` in the previous example), and use it next time as a `cursor` argument value when constructing `CollectionIterator`:
+For any repeated iterations over `Events`, persist the value of the `endCursor` (available under `events_iterator.end_cursor()` in the previous example), and use it next time as a `cursor` argument value when constructing `CollectionIterator`:
 
 ```python
-    events_iterator = CollectionIterator(
+    events_iterator = ApiClient.CollectionIterator(
         collection_url_path="/threat-detection/customer/" + CUSTOMER_ID + "/enriched-events-with-threat-detection-ids",
         query_params={
             "sort": "modificationSequenceNumber",
@@ -596,4 +600,4 @@ $ curl -X POST
 For more information see:
 
 * Cisco global threat alerts [OpenAPI documentation](https://api.cta.eu.amp.cisco.com/docs/)
-* Cisco global treat alerts in [Cisco Global Threat Alerts User Guide](https://www.cisco.com/c/en/us/td/docs/security/cognitive/cognitive-intelligence-user-guide/m_dashboard.html)
+* Cisco global threat alerts in [Cisco Global Threat Alerts User Guide](https://www.cisco.com/c/en/us/td/docs/security/cognitive/cognitive-intelligence-user-guide/m_dashboard.html)
