@@ -11,7 +11,7 @@ APP_HOST_NAME = "https://cta.eu.amp.cisco.com"
 
 class GtaAuth(AuthBase):
     """
-    Class providing authorization mechanism to GTA API.
+    Class providing authorization mechanism to global threat alerts API.
     """
     def __init__(self, securex_host_name, secuerx_client_id, securex_client_password):
         self._securex_host_name = securex_host_name
@@ -46,7 +46,7 @@ class GtaAuth(AuthBase):
 
 class ApiClient:
     """
-    GTA API client containing session instance (when instantiated) which is supposed to be used when accessing the API
+    Global threat alerts API client containing session instance (when instantiated) which is supposed to be used when accessing the API
     including authorization.
     """
     def __init__(self, securex_host_name, secuerx_client_id, securex_client_password, api_host_name=API_HOST_NAME, app_host_name=APP_HOST_NAME):
