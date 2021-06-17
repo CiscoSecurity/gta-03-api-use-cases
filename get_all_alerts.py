@@ -1,5 +1,5 @@
 import requests
-from api_client import get_authorization
+from api_client import GtaAuth
 
 CUSTOMER_ID = "YOUR_CUSTOMER_ID"
 
@@ -13,19 +13,16 @@ FETCH_ALERTS_URL = "/alert-management/customer/" + CUSTOMER_ID + "/alerts"
 
 def get_all_alerts():
     fetch_url = FETCH_ALERTS_URL
+    auth = GtaAuth(SECUREX_VISIBILITY_HOST_NAME, SECUREX_CLIENT_ID, SECUREX_CLIENT_PASSWORD)
     alerts = []
 
     while True:
         # request for page of item
         response = requests.get(API_HOST_NAME + fetch_url,
                                 headers={
-                                    "Authorization": get_authorization(
-                                        SECUREX_VISIBILITY_HOST_NAME,
-                                        SECUREX_CLIENT_ID,
-                                        SECUREX_CLIENT_PASSWORD
-                                    ),
                                     "Accept": "application/json"
-                                })
+                                },
+                                auth=auth)
         data = response.json()
 
         # collect all received items together, preserve order
