@@ -534,11 +534,7 @@ def start():
             log_event_attributes(event)
 ```
 
-> The `ApiClient` class is available in the `api_client.py` file. It helps you with authorization when accessing 
-> the API. It also implements `CollectionIterator` class which is `iterable` and which helps you to traverse through all the
-> pages of each individual collection. Use `create_collection_iterator` method on `ApiClient` instance to create 
-> `CollectionIterator` instance - it passes to it configured "self" (ApiClient) instance directly.
-> In the real world usage, you also need to provide the valid SecureX API host name and client credentials as `ApiClient` arguments.
+> The `ApiClient` class is available in the `api_client.py` file. It includes authorization and also implements iterable `CollectionIterator` class, that allows traversal through all the pages of each individual collection. Use `create_collection_iterator` method on `ApiClient` instance to create a `CollectionIterator` instance that includes a configured `ApiClient` (`self`). In the real world usage, you also need to provide a valid SecureX API host name and client credentials as `ApiClient` arguments.
 
 The `log_event_attributes` method represents whatever processing of the `Event` you would like to do, with the access to the parent `ThreatDetection` and its parent `Alert`.
 
