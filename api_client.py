@@ -13,9 +13,9 @@ class GtaAuth(AuthBase):
     """
     Class providing authorization mechanism to global threat alerts API.
     """
-    def __init__(self, securex_host_name, secuerx_client_id, securex_client_password):
+    def __init__(self, securex_host_name, securex_client_id, securex_client_password):
         self._securex_host_name = securex_host_name
-        self._secuerx_client_id = secuerx_client_id
+        self._securex_client_id = securex_client_id
         self._securex_client_password = securex_client_password
 
         self._token_value = None
@@ -32,7 +32,7 @@ class GtaAuth(AuthBase):
                                                "Accept": "application/json",
                                                "Content-Type": "application/x-www-form-urlencoded"
                                            },
-                                           auth=(self._secuerx_client_id, self._securex_client_password))
+                                           auth=(self._securex_client_id, self._securex_client_password))
             token_response_data = token_response.json()
 
             # keep validity shorter - usually is 5-10 minutes, reduce it by 30 seconds to prevent request being rejected
