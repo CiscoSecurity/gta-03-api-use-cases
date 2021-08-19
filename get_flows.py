@@ -1,0 +1,275 @@
+#!/usr/bin/python
+
+from __future__ import print_function
+import os
+import sys
+import datetime
+import json
+from api_client import ApiClient
+
+SECUREX_CLIENT_ID = "YOUR_SECUREX_CLIENT_ID"
+SECUREX_CLIENT_PASSWORD = "YOUR_SECUREX_CLIENT_PASSWORD"
+SECUREX_VISIBILITY_HOST_NAME = "YOUR_SECUREX_VISIBILITY_HOST_NAME"
+
+# Filename (including full path) to save cursor of then last processed flow item.
+# It creates a new file, if the file does not exist otherwise truncates and over-write existing file.
+# Needs read/write access to the folder, e.g. "/home/splunk/flows_end_cursor.txt"
+FLOWS_END_CURSOR_FILENAME = "flows_end_cursor.txt"
+
+DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+CHUNK_SIZE = 1000
+
+
+def read_flows_end_cursor():
+    if os.path.isfile(FLOWS_END_CURSOR_FILENAME):
+        try:
+            with open(FLOWS_END_CURSOR_FILENAME, "r") as flows_end_cursor_file:
+                return flows_end_cursor_file.readline()
+        except IOError:
+            sys.stderr.write("Error: failed to read flows end cursor: " + FLOWS_END_CURSOR_FILENAME + "\n")
+            sys.exit(1)
+
+
+def write_flows_end_cursor(flows_end_cursor):
+    try:
+        with open(FLOWS_END_CURSOR_FILENAME, "w") as flows_end_cursor_file:
+            flows_end_cursor_file.write(flows_end_cursor)
+    except IOError:
+        sys.stderr.write("Error writing flows end cursor: " + FLOWS_END_CURSOR_FILENAME + "\n")
+        sys.exit(2)
+
+
+def build_alerts_search_url(customer_id):
+    return "/alert-management/customer/" + customer_id + "/alerts/search"
+
+
+def build_assets_search_url(customer_id):
+    return "/asset-management/customer/" + customer_id + "/assets/search"
+
+
+def build_threat_intel_url():
+    return "/threat-catalog/records"
+
+
+def build_search_threat_detection_with_alert_id_url(customer_id):
+    return "/alert-management/customer/" \
+           + customer_id \
+           + "/enriched-threat-detections-with-alert-ids/search"
+
+
+def build_event_with_threat_detections_ids_search_url(customer_id):
+    return "/threat-detection/customer/" \
+           + customer_id \
+           + "/enriched-events-with-threat-detection-ids/search"
+
+
+def build_flows_search_url(customer_id):
+    return "/event-detection/customer/" \
+           + customer_id \
+           + "/flows/search"
+
+
+def chunk_list(lst, chunk_size=CHUNK_SIZE):
+    return [lst[i:i + chunk_size]
+            for i in range(0, len(lst), chunk_size)]
+
+
+def log_flow_attributes(flow, event=None, affected_asset=None, threat_detection=None, threat_intel_record=None, alert=None):
+    row = flow.copy()
+
+    if event:
+        row.update({
+            "indexTime": datetime.datetime.now().strftime(DATETIME_FORMAT),
+            "eventDetectedAt": event["detectedAt"],
+            "eventModifiedAt": event["modifiedAt"],
+            "securityEventTypeId": event["securityEventTypeId"],
+            "eventTitle": event["title"],
+            "eventSubtitle": event["subtitle"],
+        })
+
+    if affected_asset:
+        row.update({
+            "assumedOwner": affected_asset["assumedOwner"],
+        })
+
+    if threat_detection:
+        row.update({
+            "affectedAssetId": threat_detection["affectedAssetId"],
+            "threatDetectionId": threat_detection["id"],
+            "confidence": threat_detection["confidence"],
+        })
+
+    if threat_intel_record:
+        row.update({
+            "threatTitle": threat_intel_record["title"],
+            "threatCategory": threat_intel_record["category"],
+            "threatSubCategory": threat_intel_record["subcategory"],
+            "severity": threat_intel_record["severity"],
+        })
+
+    if alert:
+        row.update({
+            "alertId": alert["id"],
+            "alertState": alert["state"],
+            "risk": alert["risk"],
+        })
+
+    # not dumping securityAnnotations because they are "merged" flows
+    print(json.dumps(row))
+
+
+def main():
+    api_client = ApiClient(SECUREX_VISIBILITY_HOST_NAME, SECUREX_CLIENT_ID, SECUREX_CLIENT_PASSWORD)
+
+    # read stored cursor of last security event item from previous script run (if any)
+    # to process only new or modified events in current script run
+    previous_flows_end_cursor = read_flows_end_cursor()
+
+    # cached contextual objects - alerts, threat detections, threat intel records, assets, events
+    cached_context_objects = {}
+
+    # remember flows
+    flows = []
+
+    security_event_ids = []
+    threat_detection_ids = []
+    affected_asset_ids = []
+    threat_intel_record_ids = []
+    alert_ids = []
+
+    # iterate over all security events sorted by unique modification sequence number ensuring no event is missed
+    flows_iterator = api_client.create_collection_iterator(
+        collection_url_path=build_flows_search_url(api_client.get_customer_id()),
+        cursor=previous_flows_end_cursor,
+        query_params={
+            "sort": "modificationSequenceNumber",
+        },
+        request_body={
+            "filter": {}
+        }
+    )
+
+    # start iteration over flows
+    for flow in flows_iterator:
+        flows.append(flow)
+        security_event_ids.append(flow["networkSecurityEventId"])
+
+    # load events by chunks
+    for security_event_ids_chunk in chunk_list(list(set(security_event_ids))):
+        # iterate over security events presented in flows
+        events_iterator = api_client.create_collection_iterator(
+            collection_url_path=build_event_with_threat_detections_ids_search_url(api_client.get_customer_id()),
+            request_body={
+                "filter": {
+                    "securityEventIds": security_event_ids_chunk
+                }
+            }
+        )
+
+        for event in events_iterator:
+            cached_context_objects[event["id"]] = event
+            threat_detection_ids.extend(event["threatDetectionIds"])
+            affected_asset_ids.append(event["affectedAssetId"])
+
+    # bulk load threat detections by their ids in chunks
+    for threat_detection_ids_chunk in chunk_list(list(set(threat_detection_ids))):
+        threat_detections_iterator = api_client.create_collection_iterator(
+            collection_url_path=build_search_threat_detection_with_alert_id_url(api_client.get_customer_id()),
+            request_body={
+                "filter": {
+                    "threatDetectionIds": threat_detection_ids_chunk
+                }
+            }
+        )
+
+        # keep threat detections in "cached_context_objects" and extract IDs of alerts and threat intel records
+        for threat_detection in threat_detections_iterator:
+            cached_context_objects[threat_detection["id"]] = threat_detection
+            alert_ids.extend(threat_detection["alertIds"])
+            threat_intel_record_ids.append(threat_detection["threatIntelRecordId"])
+
+    # bulk load assets by their ids
+    for affected_assets_ids_chunk in chunk_list(list(set(affected_asset_ids))):
+        affected_asset_iterator = api_client.create_collection_iterator(
+            collection_url_path=build_assets_search_url(api_client.get_customer_id()),
+            request_body={
+                "filter": {
+                    "assetId": affected_assets_ids_chunk
+                }
+            }
+        )
+
+        # keep assets in "cached_context_objects"
+        for affected_asset in affected_asset_iterator:
+            cached_context_objects[affected_asset["id"]] = affected_asset
+
+    # bulk load alerts
+    alerts_iterator = api_client.create_collection_iterator(
+        collection_url_path=build_alerts_search_url(api_client.get_customer_id()),
+        request_body={
+            "filter": {
+                "alertIds": list(set(alert_ids))
+            }
+        }
+    )
+
+    # keep alerts in "cached_context_objects"
+    for alert in alerts_iterator:
+        cached_context_objects[alert["id"]] = alert
+
+    # bulk load threat intelligence records
+    threat_intel_records_iterator = api_client.create_collection_iterator(
+        collection_url_path=build_threat_intel_url(),
+        request_body={
+            "filter": {
+                "threatIntelRecordId": list(set(threat_intel_record_ids))
+            }
+        }
+    )
+
+    # keep threat intelligence records in "cached_context_objects"
+    for threat_intel_record in threat_intel_records_iterator:
+        cached_context_objects[threat_intel_record["id"]] = threat_intel_record
+
+    # PROCESS EVENTS AND OTHER CONTEXTUAL OBJECTS
+
+    # start with flows, get contextual objects for each flow from cached_context_objects and log them together
+    for flow in flows:
+        # get event referred by flow (might be missing)
+        event = cached_context_objects.get(flow["networkSecurityEventId"], None)
+
+        # get affected asset referred by event
+        affected_asset = cached_context_objects.get(event["affectedAssetId"], None) if event else None
+
+        # get IDs references to threat detections from event (usually one)
+        threat_detection_ids = event["threatDetectionIds"] if event else []
+
+        # process event with threat detections (called "convicting" security event)
+        for threat_detection_id in threat_detection_ids:
+            # get parent objects to event - threat detections and alert
+            # and also threat intel record from threat-catalog bounded context
+            threat_detection_with_alert_ids = cached_context_objects.get(threat_detection_id, None)
+            threat_intel_record = cached_context_objects.get(threat_detection_with_alert_ids["threatIntelRecordId"], None) if threat_detection_with_alert_ids else None
+
+            # get IDs references to alerts (usually one)
+            alert_ids = threat_detection_with_alert_ids["alertIds"] if threat_detection_with_alert_ids else []
+            for alert_id in alert_ids:
+                alert = cached_context_objects.get(alert_id, None)
+
+                # log event with all related objects - alert, threat detection, threat intel record
+                log_flow_attributes(flow, event, affected_asset, threat_detection_with_alert_ids, threat_intel_record, alert)
+            else:
+                # process event with missing threat detection or missing alert (might be GC)
+                log_flow_attributes(flow, event, affected_asset, threat_detection_with_alert_ids, threat_intel_record)
+        else:
+            # process event without threat detections (called "contextual" security event)
+            # log event just with affected_asset
+            log_flow_attributes(flow, event, affected_asset)
+
+    # store flows end_cursor for next script run
+    if flows_iterator.end_cursor():
+        write_flows_end_cursor(flows_iterator.end_cursor())
+
+
+if __name__ == "__main__":
+    main()
