@@ -164,7 +164,7 @@ class ApiClient:
                 self._end_cursor = data["pageInfo"]["endCursor"]
 
             self._has_next_page = data["pageInfo"]["hasNextPage"]
-            self._next_page_url = data["pageInfo"]["next"]
+            self._next_page_url = None  # do not use ["pageInfo"]["next"] - probably will be deprecated in the future
 
             if self._has_next_page and self._next_page_url is None:
                 self._next_page_url = self.__build_next_page_url_from_variables(self._end_cursor)
