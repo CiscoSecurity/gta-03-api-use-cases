@@ -13,9 +13,9 @@ class GtaAuth(AuthBase):
     """
     Class providing authorization mechanism to global threat alerts API.
     """
-    def __init__(self, securex_host_name, secuerx_client_id, securex_client_password):
+    def __init__(self, securex_host_name, securex_client_id, securex_client_password):
         self._securex_host_name = securex_host_name
-        self._secuerx_client_id = secuerx_client_id
+        self._securex_client_id = securex_client_id
         self._securex_client_password = securex_client_password
 
         self._token_value = None
@@ -32,7 +32,7 @@ class GtaAuth(AuthBase):
                                                "Accept": "application/json",
                                                "Content-Type": "application/x-www-form-urlencoded"
                                            },
-                                           auth=(self._secuerx_client_id, self._securex_client_password))
+                                           auth=(self._securex_client_id, self._securex_client_password))
             token_response_data = token_response.json()
 
             # keep validity shorter - usually is 5-10 minutes, reduce it by 30 seconds to prevent request being rejected
@@ -164,7 +164,7 @@ class ApiClient:
                 self._end_cursor = data["pageInfo"]["endCursor"]
 
             self._has_next_page = data["pageInfo"]["hasNextPage"]
-            self._next_page_url = data["pageInfo"]["next"]
+            self._next_page_url = None  # do not use ["pageInfo"]["next"] - probably will be deprecated in the future
 
             if self._has_next_page and self._next_page_url is None:
                 self._next_page_url = self.__build_next_page_url_from_variables(self._end_cursor)
