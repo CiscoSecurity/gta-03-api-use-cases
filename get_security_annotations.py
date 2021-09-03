@@ -17,6 +17,7 @@ SECUREX_VISIBILITY_HOST_NAME = "YOUR_SECUREX_VISIBILITY_HOST_NAME"
 EVENTS_END_CURSOR_FILENAME = "/events_end_cursor.txt"
 
 DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+CHUNK_SIZE = 1000
 
 
 def read_events_end_cursor():
@@ -63,7 +64,7 @@ def build_event_with_threat_detections_ids_url(customer_id):
            + "/enriched-events-with-threat-detection-ids"
 
 
-def log_event_attributes(event, affected_asset, threat_detection=None, alert=None, threat_intel_record=None):
+def log_event_attributes(event, affected_asset=None, threat_detection=None, threat_intel_record=None, alert=None):
     row = {
         "indexTime": datetime.datetime.now().strftime(DATETIME_FORMAT),
         "eventId": event["id"],
@@ -72,8 +73,12 @@ def log_event_attributes(event, affected_asset, threat_detection=None, alert=Non
         "securityEventTypeId": event["securityEventTypeId"],
         "eventTitle": event["title"],
         "eventSubtitle": event["subtitle"],
-        "assumedOwner": affected_asset["assumedOwner"],
     }
+
+    if affected_asset:
+        row.update({
+            "assumedOwner": affected_asset["assumedOwner"],
+        })
 
     if alert:
         row.update({
@@ -104,6 +109,11 @@ def log_event_attributes(event, affected_asset, threat_detection=None, alert=Non
         })
 
     print(json.dumps(row))
+
+
+def chunk_list(lst, chunk_size=CHUNK_SIZE):
+    return [lst[i:i + chunk_size]
+            for i in range(0, len(lst), chunk_size)]
 
 
 def main():
@@ -137,38 +147,40 @@ def main():
         threat_detection_ids.extend(event["threatDetectionIds"])
         affected_asset_ids.append(event["affectedAssetId"])
 
-    # bulk load threat detections by their ids
-    threat_detections_iterator = api_client.create_collection_iterator(
-        collection_url_path=build_search_threat_detection_with_alert_id_url(api_client.get_customer_id()),
-        request_body={
-            "filter": {
-                "threatDetectionIds": list(set(threat_detection_ids))
-            }
-        }
-    )
-
     alert_ids = []
     threat_intel_record_ids = []
 
-    # keep threat detections in "cached_context_objects" and extract IDs of alerts and threat intel records
-    for threat_detection in threat_detections_iterator:
-        cached_context_objects[threat_detection["id"]] = threat_detection
-        alert_ids.extend(threat_detection["alertIds"])
-        threat_intel_record_ids.append(threat_detection["threatIntelRecordId"])
-
-    # bulk load assets by their ids
-    affected_asset_iterator = api_client.create_collection_iterator(
-        collection_url_path=build_assets_search_url(api_client.get_customer_id()),
-        request_body={
-            "filter": {
-                "assetId": list(set(affected_asset_ids))
+    for distinct_threat_detection_ids_chunk in chunk_list(list(set(threat_detection_ids))):
+        # bulk load threat detections chunk by their ids
+        threat_detections_iterator = api_client.create_collection_iterator(
+            collection_url_path=build_search_threat_detection_with_alert_id_url(api_client.get_customer_id()),
+            request_body={
+                "filter": {
+                    "threatDetectionIds": distinct_threat_detection_ids_chunk
+                }
             }
-        }
-    )
+        )
 
-    # keep assets in "cached_context_objects"
-    for affected_asset in affected_asset_iterator:
-        cached_context_objects[affected_asset["id"]] = affected_asset
+        # keep threat detections in "cached_context_objects" and extract IDs of alerts and threat intel records
+        for threat_detection in threat_detections_iterator:
+            cached_context_objects[threat_detection["id"]] = threat_detection
+            alert_ids.extend(threat_detection["alertIds"])
+            threat_intel_record_ids.append(threat_detection["threatIntelRecordId"])
+
+    for distinct_affected_asset_ids_chunk in chunk_list(list(set(affected_asset_ids))):
+        # bulk load assets chunk by their ids
+        affected_asset_iterator = api_client.create_collection_iterator(
+            collection_url_path=build_assets_search_url(api_client.get_customer_id()),
+            request_body={
+                "filter": {
+                    "assetId": distinct_affected_asset_ids_chunk
+                }
+            }
+        )
+
+        # keep assets in "cached_context_objects"
+        for affected_asset in affected_asset_iterator:
+            cached_context_objects[affected_asset["id"]] = affected_asset
 
     # bulk load alerts
     alerts_iterator = api_client.create_collection_iterator(
@@ -203,27 +215,28 @@ def main():
     # start with events, get contextual objects for each event from cached_context_objects and log them together
     for event in events:
         # get affected asset referred by event
-        affected_asset = cached_context_objects[event["affectedAssetId"]]
+        affected_asset = cached_context_objects.get(event["affectedAssetId"], None)
 
-        # get IDs references to threat detections from event (usually one)
+        # get IDs references to threat detections from event (usually one, can be [])
         threat_detection_ids = event["threatDetectionIds"]
 
-        # process all possible threat detections
-        if len(threat_detection_ids) > 0:
-            # process event with threat detections (called "convicting" security event)
-            for threat_detection_id in threat_detection_ids:
-                # get parent objects to event - threat detections and alert
-                # and also threat intel record from threat-catalog bounded context
-                threat_detection_with_alert_ids = cached_context_objects[threat_detection_id]
-                threat_intel_record = cached_context_objects[threat_detection_with_alert_ids["threatIntelRecordId"]]
+        # process event with threat detections (called "convicting" security event)
+        for threat_detection_id in threat_detection_ids:
+            # get parent objects to event - threat detections and alert
+            # and also threat intel record from threat-catalog bounded context
+            threat_detection_with_alert_ids = cached_context_objects.get(threat_detection_id, None)
+            threat_intel_record = cached_context_objects.get(threat_detection_with_alert_ids["threatIntelRecordId"], None) if threat_detection_with_alert_ids else None
 
-                # get IDs references to alerts (usually one)
-                alert_ids = threat_detection_with_alert_ids["alertIds"]
-                for alert_id in alert_ids:
-                    alert = cached_context_objects[alert_id]
+            # get IDs references to alerts (usually one)
+            alert_ids = threat_detection_with_alert_ids["alertIds"] if threat_detection_with_alert_ids else []
+            for alert_id in alert_ids:
+                alert = cached_context_objects.get(alert_id, None)
 
-                    # log event with related objects - alert, threat detection, threat intel record
-                    log_event_attributes(event, affected_asset, threat_detection_with_alert_ids, alert, threat_intel_record)
+                # log event with all related objects - alert, threat detection, threat intel record
+                log_event_attributes(event, affected_asset, threat_detection_with_alert_ids, threat_intel_record, alert)
+            else:
+                # process event with missing threat detection or missing alert (might be GC)
+                log_event_attributes(event, affected_asset, threat_detection_with_alert_ids, threat_intel_record)
         else:
             # process event without threat detections (called "contextual" security event)
             # log event just with affected_asset
