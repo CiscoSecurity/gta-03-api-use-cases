@@ -17,6 +17,7 @@ SECUREX_VISIBILITY_HOST_NAME = "YOUR_SECUREX_VISIBILITY_HOST_NAME"
 EVENTS_END_CURSOR_FILENAME = "/events_end_cursor.txt"
 
 DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+CHUNK_SIZE = 1000
 
 
 def read_events_end_cursor():
@@ -110,6 +111,11 @@ def log_event_attributes(event, affected_asset=None, threat_detection=None, thre
     print(json.dumps(row))
 
 
+def chunk_list(lst, chunk_size=CHUNK_SIZE):
+    return [lst[i:i + chunk_size]
+            for i in range(0, len(lst), chunk_size)]
+
+
 def main():
     api_client = ApiClient(SECUREX_VISIBILITY_HOST_NAME, SECUREX_CLIENT_ID, SECUREX_CLIENT_PASSWORD)
 
@@ -141,38 +147,40 @@ def main():
         threat_detection_ids.extend(event["threatDetectionIds"])
         affected_asset_ids.append(event["affectedAssetId"])
 
-    # bulk load threat detections by their ids
-    threat_detections_iterator = api_client.create_collection_iterator(
-        collection_url_path=build_search_threat_detection_with_alert_id_url(api_client.get_customer_id()),
-        request_body={
-            "filter": {
-                "threatDetectionIds": list(set(threat_detection_ids))
-            }
-        }
-    )
-
     alert_ids = []
     threat_intel_record_ids = []
 
-    # keep threat detections in "cached_context_objects" and extract IDs of alerts and threat intel records
-    for threat_detection in threat_detections_iterator:
-        cached_context_objects[threat_detection["id"]] = threat_detection
-        alert_ids.extend(threat_detection["alertIds"])
-        threat_intel_record_ids.append(threat_detection["threatIntelRecordId"])
-
-    # bulk load assets by their ids
-    affected_asset_iterator = api_client.create_collection_iterator(
-        collection_url_path=build_assets_search_url(api_client.get_customer_id()),
-        request_body={
-            "filter": {
-                "assetId": list(set(affected_asset_ids))
+    for distinct_threat_detection_ids_chunk in chunk_list(list(set(threat_detection_ids))):
+        # bulk load threat detections chunk by their ids
+        threat_detections_iterator = api_client.create_collection_iterator(
+            collection_url_path=build_search_threat_detection_with_alert_id_url(api_client.get_customer_id()),
+            request_body={
+                "filter": {
+                    "threatDetectionIds": distinct_threat_detection_ids_chunk
+                }
             }
-        }
-    )
+        )
 
-    # keep assets in "cached_context_objects"
-    for affected_asset in affected_asset_iterator:
-        cached_context_objects[affected_asset["id"]] = affected_asset
+        # keep threat detections in "cached_context_objects" and extract IDs of alerts and threat intel records
+        for threat_detection in threat_detections_iterator:
+            cached_context_objects[threat_detection["id"]] = threat_detection
+            alert_ids.extend(threat_detection["alertIds"])
+            threat_intel_record_ids.append(threat_detection["threatIntelRecordId"])
+
+    for distinct_affected_asset_ids_chunk in chunk_list(list(set(affected_asset_ids))):
+        # bulk load assets chunk by their ids
+        affected_asset_iterator = api_client.create_collection_iterator(
+            collection_url_path=build_assets_search_url(api_client.get_customer_id()),
+            request_body={
+                "filter": {
+                    "assetId": distinct_affected_asset_ids_chunk
+                }
+            }
+        )
+
+        # keep assets in "cached_context_objects"
+        for affected_asset in affected_asset_iterator:
+            cached_context_objects[affected_asset["id"]] = affected_asset
 
     # bulk load alerts
     alerts_iterator = api_client.create_collection_iterator(
