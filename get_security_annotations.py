@@ -63,7 +63,7 @@ def build_event_with_threat_detections_ids_url(customer_id):
            + "/enriched-events-with-threat-detection-ids"
 
 
-def log_event_attributes(event, affected_asset, threat_detection=None, alert=None, threat_intel_record=None):
+def log_event_attributes(event, affected_asset=None, threat_detection=None, threat_intel_record=None, alert=None):
     row = {
         "indexTime": datetime.datetime.now().strftime(DATETIME_FORMAT),
         "eventId": event["id"],
@@ -72,8 +72,12 @@ def log_event_attributes(event, affected_asset, threat_detection=None, alert=Non
         "securityEventTypeId": event["securityEventTypeId"],
         "eventTitle": event["title"],
         "eventSubtitle": event["subtitle"],
-        "assumedOwner": affected_asset["assumedOwner"],
     }
+
+    if affected_asset:
+        row.update({
+            "assumedOwner": affected_asset["assumedOwner"],
+        })
 
     if alert:
         row.update({
@@ -203,27 +207,28 @@ def main():
     # start with events, get contextual objects for each event from cached_context_objects and log them together
     for event in events:
         # get affected asset referred by event
-        affected_asset = cached_context_objects[event["affectedAssetId"]]
+        affected_asset = cached_context_objects.get(event["affectedAssetId"], None)
 
-        # get IDs references to threat detections from event (usually one)
+        # get IDs references to threat detections from event (usually one, can be [])
         threat_detection_ids = event["threatDetectionIds"]
 
-        # process all possible threat detections
-        if len(threat_detection_ids) > 0:
-            # process event with threat detections (called "convicting" security event)
-            for threat_detection_id in threat_detection_ids:
-                # get parent objects to event - threat detections and alert
-                # and also threat intel record from threat-catalog bounded context
-                threat_detection_with_alert_ids = cached_context_objects[threat_detection_id]
-                threat_intel_record = cached_context_objects[threat_detection_with_alert_ids["threatIntelRecordId"]]
+        # process event with threat detections (called "convicting" security event)
+        for threat_detection_id in threat_detection_ids:
+            # get parent objects to event - threat detections and alert
+            # and also threat intel record from threat-catalog bounded context
+            threat_detection_with_alert_ids = cached_context_objects.get(threat_detection_id, None)
+            threat_intel_record = cached_context_objects.get(threat_detection_with_alert_ids["threatIntelRecordId"], None) if threat_detection_with_alert_ids else None
 
-                # get IDs references to alerts (usually one)
-                alert_ids = threat_detection_with_alert_ids["alertIds"]
-                for alert_id in alert_ids:
-                    alert = cached_context_objects[alert_id]
+            # get IDs references to alerts (usually one)
+            alert_ids = threat_detection_with_alert_ids["alertIds"] if threat_detection_with_alert_ids else []
+            for alert_id in alert_ids:
+                alert = cached_context_objects.get(alert_id, None)
 
-                    # log event with related objects - alert, threat detection, threat intel record
-                    log_event_attributes(event, affected_asset, threat_detection_with_alert_ids, alert, threat_intel_record)
+                # log event with all related objects - alert, threat detection, threat intel record
+                log_event_attributes(event, affected_asset, threat_detection_with_alert_ids, threat_intel_record, alert)
+            else:
+                # process event with missing threat detection or missing alert (might be GC)
+                log_event_attributes(event, affected_asset, threat_detection_with_alert_ids, threat_intel_record)
         else:
             # process event without threat detections (called "contextual" security event)
             # log event just with affected_asset
