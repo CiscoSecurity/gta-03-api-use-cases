@@ -48,8 +48,8 @@ def build_assets_search_url(customer_id):
     return "/asset-management/customer/" + customer_id + "/assets/search"
 
 
-def build_threat_intel_url():
-    return "/threat-catalog/records"
+def build_threat_intel_search_url():
+    return "/threat-catalog/records/search"
 
 
 def build_search_threat_detection_with_alert_id_url(customer_id):
@@ -198,7 +198,7 @@ def main():
 
     # bulk load threat intelligence records
     threat_intel_records_iterator = api_client.create_collection_iterator(
-        collection_url_path=build_threat_intel_url(),
+        collection_url_path=build_threat_intel_search_url(),
         request_body={
             "filter": {
                 "threatIntelRecordId": list(set(threat_intel_record_ids))
