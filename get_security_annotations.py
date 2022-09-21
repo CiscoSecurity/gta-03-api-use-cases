@@ -83,7 +83,7 @@ def log_event_attributes(event, affected_asset=None, threat_detection=None, thre
     if alert:
         row.update({
             "alertId": alert["id"],
-            "alertState": alert["state"],
+            "alertStatus": alert["status"]["value"],
             "risk": alert["risk"],
         })
 
