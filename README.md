@@ -1,5 +1,10 @@
 # Using Global Threat Alerts (formerly Cognitive Intelligence) API
 
+---
+> ⚠️ _**API Changes**_: Due to API evolution and simplification we deprecated `state` key on `Alert` object.
+> Use `status` key on `Alert` instead. `state` key will be removed from `Alert` soon.
+---
+
 To access the global threat alerts API, you must link your global threat alerts customer identity with SecureX and create a SecureX API Client. You can find detailed instructions in global threat alerts documentation on the [Getting API Access Token](https://api.cta.eu.amp.cisco.com/docs/#/authentication) page.
 
 To continue, you'll need:
@@ -74,7 +79,10 @@ You'll get a paginated collection response:
     {
       "id": "1404846aee08468007331ad8374ce2d796697dacc70a8f7e0e82d02cfd355057",
       "risk": "Critical",
-      "state": "Remediated",
+      "status": {
+        "value": "Closed",
+        "closingReasons": null
+      },
       "etaFlag": "EtaBasedDetection",
       "note": "string",
       "triggeredAt": "2020-10-14T13:59:54.047Z",
@@ -130,7 +138,7 @@ See [Date-time format](#date-time-format) for more information about the `modifi
 
 `Alert.modifiedAt` is initially the same as `Alert.triggeredAt`, but changes when:
 
-* The `Alert` content changes (eg. `risk`, `state`, `etaFlag`, `note`).
+* The `Alert` content changes (eg. `risk`, `status`, `etaFlag`, `note`).
 * `ThreatDetection` is added to the `Alert`.
 * `ThreatDetection` is removed from the `Alert`.
 
@@ -154,29 +162,27 @@ $ curl -H "Authorization: Bearer ${ACCESS_TOKEN}" \
   "https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts/${ALERT_ID}"
 ```
 
-## Update Alert state
+## Update Alert status
 
-To change the Alert state, use:
+To change the Alert status, use:
 
 ```console
 $ curl -X PATCH \
        -H "Authorization: Bearer ${ACCESS_TOKEN}" \
        -H "Accept: application/json" \
        -H "Content-Type: application/json" \
-       --data '{"state":"Remediated"}' \
-  "https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts/${ALERT_ID}/state"
+       --data '{"status":{"value":"Open"}}' \
+  "https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts/${ALERT_ID}/status"
 ```
 
-Available `AlertState` values:
+Available `AlertStatus` values:
 
 * `New`
-* `Investigating`
-* `Remediating`
-* `Remediated`
-* `Ignored`
-* `FalsePositive`
+* `Open`
+* `Closed`
 
-> To reset the Alert state back to `New`, you can also call the `DELETE` method on the `/state` resource.
+> When changing alert status to `Closed` you can also persist reasons why you are closing it. Look into
+> [OpenAPI documentation](https://api.cta.eu.amp.cisco.com/docs/) for more info.
 
 ## Update Alert note
 
@@ -191,7 +197,7 @@ $ curl -X PATCH \
   "https://api.cta.eu.amp.cisco.com/alert-management/customer/${CUSTOMER_ID}/alerts/${ALERT_ID}/note"
 ```
 
-_**Caution:** When the alert is in the New state, the note may get deleted when alerts are recalculated. To prevent this, change the state of the alert to not New._
+_**Caution:** When the alert is in the New status, the note may get deleted when alerts are recalculated. To prevent this, change the status of the alert to not New._
 
 > To remove the Alert note, call the `DELETE` method on the `/note` resource.
 
@@ -232,7 +238,9 @@ Example:
     {
       "id": "1404846aee08468007331ad8374ce2d796697dacc70a8f7e0e82d02cfd355057",
       "risk": "Critical",
-      "state": "Remediated",
+      "status": {
+        "value": "Open"
+      },
       "etaFlag": "EtaBasedDetection",
       "note": "string",
       "triggeredAt": "2020-10-14T13:59:54.047Z",
