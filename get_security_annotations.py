@@ -48,6 +48,10 @@ def build_assets_search_url(customer_id):
     return "/asset-management/customer/" + customer_id + "/assets/search"
 
 
+def build_affected_asset_ip_assignments_url(customer_id, affected_asset_id):
+    return "/asset-management/customer/" + customer_id + "/assets/" + affected_asset_id + "/ip-assignments?distinctIPAddresses=true&size=10"
+
+
 def build_threat_intel_search_url():
     return "/threat-catalog/records/search"
 
@@ -78,6 +82,7 @@ def log_event_attributes(event, affected_asset=None, threat_detection=None, thre
     if affected_asset:
         row.update({
             "assumedOwner": affected_asset["assumedOwner"],
+            "ipAssignments": affected_asset["ipAssignments"],
         })
 
     if alert:
@@ -181,6 +186,11 @@ def main():
         # keep assets in "cached_context_objects"
         for affected_asset in affected_asset_iterator:
             cached_context_objects[affected_asset["id"]] = affected_asset
+
+    for affected_asset_id in list(set(affected_asset_ids)):
+        api_ip_assignments_response = api_client.api_session().get(api_client.api_host_name() + build_affected_asset_ip_assignments_url(api_client.get_customer_id(), affected_asset_id))
+        ip_assignments_response = api_ip_assignments_response.json()
+        cached_context_objects[affected_asset_id]["ipAssignments"] = list(map(lambda obj: (str(obj["ipAddress"])), ip_assignments_response["items"]))
 
     # bulk load alerts
     alerts_iterator = api_client.create_collection_iterator(
